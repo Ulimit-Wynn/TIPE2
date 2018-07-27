@@ -3,8 +3,8 @@ import numpy as np
 
 
 class DifferentiableFunction:
-    T = 360
-    dt = 0.1
+    T = 1
+    dt = 0.01
 
     def __init__(self, f=None, vector=None, dim=None, dfdx=None, dfdu=None):
         self.evaluate = f
@@ -32,18 +32,18 @@ class DifferentiableFunction:
 def gradient(f, g, h):
     def func(t, y):
         return np.atleast_1d(np.atleast_1d(f.dx(t)) @ np.atleast_1d(y) + g.dx(t))
+    print("Calculating p")
 
-    print('calculating p')
-    p_values = integrate.solve_ivp(func, (0, g.T), np.atleast_1d(h.dx(f.T)), t_eval=[i for i in range(0, g.T + 1)]).y
+    p_values = integrate.solve_ivp(func, (0, g.T), np.atleast_1d(h.dx(f.T)),
+                                   t_eval=[i * g.dt for i in range(0, int(g.T / g.dt) + 1)]).y
     for i in range(0, np.size(p_values, 0)):
         p_values[i] = p_values[i][::-1]
-
-    def p(t):
-        j = int(t * f.T / np.size(p_values[0]))
-        return np.array([i[j] for i in p_values])
+    p = DifferentiableFunction(vector=p_values, dim=np.size(p_values, 0))
+    p.to_func()
+    print("p calculated")
 
     def grad_eval(t):
-        return np.atleast_1d(np.atleast_1d(f.du(t)) @ p(t) + g.du(t))
+        return np.atleast_1d(np.atleast_1d(f.du(t)) @ np.atleast_1d(p.evaluate(t)) + np.atleast_1d(g.du(t)))
 
     grad = DifferentiableFunction(grad_eval, dfdx=None, dfdu=None)
     grad.to_vector()
