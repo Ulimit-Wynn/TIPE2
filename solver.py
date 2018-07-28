@@ -4,7 +4,8 @@ import numpy as np
 
 class DifferentiableFunction:
     T = 1
-    dt = 0.01
+    n = 100
+    dt = T / n
 
     def __init__(self, f=None, vector=None, dim=None, dfdx=None, dfdu=None):
         self.evaluate = f
@@ -14,16 +15,18 @@ class DifferentiableFunction:
         self.dim = dim
 
     def to_vector(self):
-        n = np.size(self.evaluate(0))
-        v = np.array([self.evaluate(i * self.dt) for i in range(0, int(self.T / self.dt) + 1)])
+        dim = np.size(self.evaluate(0))
+        v = np.array([self.evaluate(i * self.dt) + self.evaluate((i + 1) * self.dt) for i in range(0, self.n)])
         v = np.ravel(v)
         self.vector = v
-        self.dim = n
+        self.dim = dim
 
     def to_func(self):
         v = np.reshape(self.vector, (-1, self.dim))
 
         def func(t):
+            if t == self.T:
+                return v[int(self.T / self.dt) - 1]
             return v[int(t / self.dt)]
 
         self.evaluate = func
@@ -35,7 +38,7 @@ def gradient(f, g, h):
     print("Calculating p")
 
     p_values = integrate.solve_ivp(func, (0, g.T), np.atleast_1d(h.dx(f.T)),
-                                   t_eval=[i * g.dt for i in range(0, int(g.T / g.dt) + 1)]).y
+                                   t_eval=[i * g.dt for i in range(0, g.n+1)]).y
     for i in range(0, np.size(p_values, 0)):
         p_values[i] = p_values[i][::-1]
     p = DifferentiableFunction(vector=p_values, dim=np.size(p_values, 0))
