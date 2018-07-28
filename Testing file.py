@@ -12,15 +12,15 @@ def u_eval(t):
     return 0
 
 
-def f_eval(t, u, x):
-    return u.evaluate(t)
+def f_eval(u_at_t, x_at_t):
+    return u_at_t
 
 
-def dfdx(t, u, x):
+def dfdx(u_at_t, x_at_t):
     return 0
 
 
-def dfdu(t, u, x):
+def dfdu(u_at_t, x_at_t):
     return 1
 
 
@@ -28,19 +28,19 @@ u = DifferentiableFunction(u_eval)
 u.to_vector()
 
 
-def g_eval(t, u, x):
-    return 1 / 2 * (x(t) ** 2 + u.evaluate(t) ** 2)
+def g_eval(u_at_t, x_at_t):
+    return 1 / 2 * (x_at_t ** 2 + u_at_t ** 2)
 
 
-def dgdx(t, u, x):
-    return x(t)
+def dgdx(u_at_t, x_at_t):
+    return x_at_t
 
 
-def dgdu(t, u, x):
-    return u.evaluate(t)
+def dgdu(u_at_t, x_at_t):
+    return u_at_t
 
 
-def h_eval(t, u, x):
+def h_eval(u_at_t, x_at_t):
     return 0
 
 
@@ -49,59 +49,40 @@ g = DifferentiableFunction(f=g_eval, dfdx=dgdx, dfdu=dgdu)
 h = DifferentiableFunction(f=h_eval, dfdx=h_eval, dfdu=h_eval)
 
 
-def J(vector):
+def J_wrapper(vector):
     u = DifferentiableFunction(vector=vector, dim=1)
     u.to_func()
-    def func(t, x):
-        return f_eval(t, u, x)
-    x_solve = sp.solve_ivp(func, (0, f.T), np.array([x0]), dense_output=True).sol
-
-    def x(t):
-        return x_solve.__call__(t)
-
-    J = sp.quad(g.evaluate, 0, g.T, limit=50, args=(u, x))[0]
-    print("J: ", J)
-    return (J)
+    j = solver.J(u, f, g, h)
+    return j
 
 
 def grad_wrapper(vector):
     print("Calculating grad")
     u = DifferentiableFunction(vector=vector, dim=1)
     u.to_func()
-    def func(t, x):
-        return f_eval(t, u, x)
-    x_solve = sp.solve_ivp(func, (0, f.T), np.array([x0]),dense_output=True).sol
-
-    def x(t):
-        return x_solve.__call__(t)
-
-    grad = solver.gradient(u, x, f, g, h)
+    grad = solver.gradient(u, f, g, h)
     def grad2(t):
         return grad.evaluate(t) ** 2
-    print(np.sqrt(sp.quad(grad2,0, T)[0]/T))
+    print(np.sqrt(sp.quad(grad2, 0, T)[0]))
     print("grad calculated")
     grad.to_vector()
     return (grad.vector)
 
 
-result = optimize.minimize(J, u.vector, jac=grad_wrapper)
+result = optimize.minimize(J_wrapper, u.vector, jac=grad_wrapper)
 
-T = np.linspace(0, u.T, np.size(result.x))
+time = np.linspace(0, u.T, np.size(result.x))
 print(result)
 u1 = DifferentiableFunction(vector=result.x, dim=1)
 u1.to_func()
 
 
-
 def x1(t):
     def func(t, x):
-        return f_eval(t, u1, x)
-    x_solve = sp.solve_ivp(func, (0, f.T), np.array([x0]),dense_output=True).sol
+        return f_eval(u1.evaluate(t), x)
+    x_solve = sp.solve_ivp(func, (0, f.T), np.array([x0]), dense_output=True).sol
     return x_solve.__call__(t)
 
-grad1 = solver.gradient(u1, x1, f, g, h)
-
-grad1.to_vector()
 
 def ideal_eval(t):
     return x0 / np.cosh(u.T) * np.cosh(u.T - t)
@@ -111,7 +92,6 @@ ideal = DifferentiableFunction(f=ideal_eval)
 ideal.to_vector()
 X = DifferentiableFunction(f=x1)
 X.to_vector()
-#plt.plot(T, X.vector)
-#plt.plot(T, result.x)
-plt.plot(T, grad1.vector)
+plt.plot(time, X.vector)
+plt.plot(time, result.x)
 plt.show()
