@@ -11,19 +11,16 @@ x0 = 1
 def u_eval(t):
     return 0
 
-
-def dudx(u):
-    def func(t):
-        return (u.evaluate(t) - u.evaluate(t + 0.00001)) / 0.00001
-
-    return func
+def f_eval(t, u):
+    return u.evaluate(t)
 
 
-def dudu(u):
-    def func(t):
-        return 1
+def dfdx(t, u):
+    return 0
 
-    return func
+
+def dfdu(t, u):
+    return 1
 
 
 u = DifferentiableFunction(u_eval)
@@ -34,52 +31,44 @@ def x(u, t):
     return sp.quad(u.evaluate, 0, t, limit=100)[0] + x0
 
 
-def g_eval(u):
-    def func(t):
-        return 1 / 2 * (x(u, t) ** 2 + u.evaluate(t) ** 2)
-
-    return func
+def g_eval(t,u):
+    return 1 / 2 * (x(u, t) ** 2 + u.evaluate(t) ** 2)
 
 
-def dgdx(u):
-    def func(t):
-        return x(u, t)
-
-    return func
+def dgdx(t, u):
+    return x(u, t)
 
 
-def dgdu(u):
-    def func(t):
-        return u.evaluate(t)
-
-    return func
+def dgdu(t, u):
+    return u.evaluate(t)
 
 
-def h_eval(t):
+def h_eval(t, u):
     return 0
+
+f = DifferentiableFunction(f=f_eval, dfdx=dfdx, dfdu=dfdu)
+g = DifferentiableFunction(f=g_eval, dfdx=dgdx, dfdu=dgdu)
+h = DifferentiableFunction(f=h_eval, dfdx=h_eval, dfdu=h_eval)
 
 
 def J(vector):
     u = DifferentiableFunction(vector=vector, dim=1)
     u.to_func()
-    g = DifferentiableFunction(f=g_eval(u))
-    J = sp.quad(g.evaluate, 0, g.T, limit=50)[0]
+    J = sp.quad(g.evaluate, 0, g.T, limit=50, args=(u))[0]
     print("J: ", J)
     return (J)
 
 
-h = DifferentiableFunction(h_eval, dfdx=h_eval, dfdu=h_eval)
+h = DifferentiableFunction(f=h_eval, dfdx=h_eval, dfdu=h_eval)
+g = DifferentiableFunction(f=g_eval, dfdx=dgdx, dfdu=dgdu)
 
 
 def grad_wrapper(vector):
     print("Calculating grad")
-    f = DifferentiableFunction(vector=vector, dim=1)
-    f.to_func()
-    f.dx = dudx(f)
-    f.du = dudu(f)
-    g = DifferentiableFunction(f=g_eval(f), dfdx=dgdx(f), dfdu=dgdu(f))
-    h = DifferentiableFunction(f=h_eval, dfdx=h_eval, dfdu=h_eval)
-    grad = solver.gradient(f, g, h)
+    u = DifferentiableFunction(vector=vector, dim=1)
+    u.to_func()
+    grad = solver.gradient(u, f, g, h)
+    print("grad calculated")
     return (grad)
 
 
@@ -94,8 +83,11 @@ u1.to_func()
 def x1(t):
     return x(u1, t)
 
+
 def ideal_eval(t):
-    return x0/np.cosh(u.T) * np.cosh(u.T - t)
+    return x0 / np.cosh(u.T) * np.cosh(u.T - t)
+
+
 ideal = DifferentiableFunction(f=ideal_eval)
 ideal.to_vector()
 X = DifferentiableFunction(f=x1)
