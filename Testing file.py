@@ -76,8 +76,12 @@ def grad_wrapper(vector):
         return x_solve.__call__(t)
 
     grad = solver.gradient(u, x, f, g, h)
+    def grad2(t):
+        return grad.evaluate(t) ** 2
+    print(np.sqrt(sp.quad(grad2,0, T)[0]/T))
     print("grad calculated")
-    return (grad)
+    grad.to_vector()
+    return (grad.vector)
 
 
 result = optimize.minimize(J, u.vector, jac=grad_wrapper)
@@ -88,12 +92,16 @@ u1 = DifferentiableFunction(vector=result.x, dim=1)
 u1.to_func()
 
 
+
 def x1(t):
     def func(t, x):
         return f_eval(t, u1, x)
     x_solve = sp.solve_ivp(func, (0, f.T), np.array([x0]),dense_output=True).sol
     return x_solve.__call__(t)
 
+grad1 = solver.gradient(u1, x1, f, g, h)
+
+grad1.to_vector()
 
 def ideal_eval(t):
     return x0 / np.cosh(u.T) * np.cosh(u.T - t)
@@ -103,6 +111,7 @@ ideal = DifferentiableFunction(f=ideal_eval)
 ideal.to_vector()
 X = DifferentiableFunction(f=x1)
 X.to_vector()
-plt.plot(T, X.vector)
-plt.plot(T, ideal.vector)
+#plt.plot(T, X.vector)
+#plt.plot(T, result.x)
+plt.plot(T, grad1.vector)
 plt.show()

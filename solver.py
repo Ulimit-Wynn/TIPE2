@@ -3,7 +3,7 @@ import numpy as np
 
 
 class DifferentiableFunction:
-    T = 10
+    T = 100
     n = 1000
     dt = T / n
 
@@ -46,5 +46,4 @@ def gradient(u, x, f, g, h):
         return np.atleast_1d(np.atleast_1d(f.du(t, u, x)) @ np.atleast_1d(p.evaluate(t)) + np.atleast_1d(g.du(t, u, x)))
 
     grad = DifferentiableFunction(grad_eval, dfdx=None, dfdu=None)
-    grad.to_vector()
-    return grad.vector
+    return grad
