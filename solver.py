@@ -3,8 +3,8 @@ import numpy as np
 
 
 class DifferentiableFunction:
-    T = 1
-    n = 100
+    T = 10
+    n = 1000
     dt = T / n
 
     def __init__(self, f=None, vector=None, dim=None, dfdx=None, dfdu=None):
@@ -16,7 +16,7 @@ class DifferentiableFunction:
 
     def to_vector(self):
         dim = np.size(self.evaluate(0))
-        v = np.array([self.evaluate(i * self.dt) + self.evaluate((i + 1) * self.dt) for i in range(0, self.n)])
+        v = np.array([(self.evaluate(i * self.dt) + self.evaluate((i + 1) * self.dt))/2 for i in range(0, self.n)])
         v = np.ravel(v)
         self.vector = v
         self.dim = dim
@@ -34,7 +34,7 @@ class DifferentiableFunction:
 
 def gradient(u, x, f, g, h):
     def func(t, y):
-        return np.atleast_1d(np.atleast_1d(f.dx(t, u, x)) @ np.atleast_1d(y) + g.dx(t, u, x))
+        return np.atleast_1d(np.atleast_1d(f.dx(f.T - t, u, x)) @ np.atleast_1d(y) + g.dx(f.T - t, u, x))
     print("Calculating p")
 
     p_sol = integrate.solve_ivp(func, (0, g.T), np.atleast_1d(h.dx(f.T, u, x)),dense_output=True).sol

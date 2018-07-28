@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import solver
 
 x0 = 1
-
+T = DifferentiableFunction.T
 
 def u_eval(t):
     return 0
