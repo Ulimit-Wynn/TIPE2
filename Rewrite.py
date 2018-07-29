@@ -1,8 +1,8 @@
 import numpy as np
 import scipy.integrate as integrate
 
-T = 56
-n = 100
+T = 1
+n = 10
 dt = T / n
 
 
@@ -39,12 +39,18 @@ class TimeFunction:
         self.vector = vector
         self.dim = dim
 
-    def integrate(self):
-        return integrate.quad(self.evaluate, 0, T, limit=100)
+    def integrate(self, a, b):
+        v = []
+        for i in range(0, np.size(self(0))):
+            def call_index(t):
+                return self(t)[i]
+            v.append(integrate.quad(call_index, a, b)[0])
+        v = np.array(v)
+        return v
 
     def to_vector(self):
         dim = np.size(self.evaluate(0))
-        v = np.array([(integrate.quad(self.evaluate, i * T / n, (i + 1) * T / n, limit=100)[0])*n / T for i in range(0, n)])
+        v = np.array([(self.integrate(i * T/n, (i+1) *T/n)*n / T) for i in range(0, n)])
         v = np.ravel(v)
         self.vector = v
         self.dim = dim
@@ -71,7 +77,7 @@ class DynamicalSystem:
     def solve(self, u):
         def func(t, x_at_t):
             return self.f.evaluate(t, u.evaluate(t), x_at_t)
-
+        print("solving system")
         solve = integrate.solve_ivp(func, (0, T), self.x0, dense_output=True, rtol=10 ** (-13), atol=10 ** (-8)).sol
         solution = TimeFunction(f=solve.__call__)
         return solution
@@ -89,11 +95,11 @@ class Functional:
 
         def g_integrable(t):
             return self.g.evaluate(u(t), x(t))
-
         j = integrate.quad(g_integrable, 0, T)[0] + self.h.evaluate(x(T))
         return j
 
     def grad(self, u):
+        print("calculating grad")
         x = self.system.solve(u)
 
         def func(t, y):
