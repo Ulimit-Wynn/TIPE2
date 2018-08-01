@@ -58,13 +58,11 @@ def gradient(u, f, g, h):
 
     def func(t, y):
         return np.atleast_1d(np.atleast_1d(f.dx(u.evaluate(f.T - t), x(f.T - t))) @ np.atleast_1d(y) + g.dx(u.evaluate(f.T - t), x(f.T - t)))
-    print("Calculating p")
 
     p_sol = integrate.solve_ivp(func, (0, g.T), np.atleast_1d(h.dx(u.evaluate(f.T), x(f.T))), dense_output=True).sol
 
     def p_eval(t):
         return p_sol.__call__(g.T-t)
-    print("p calculated")
     p = DifferentiableFunction(f=p_eval)
     def grad_eval(t):
         return np.atleast_1d(np.atleast_1d(f.du(u.evaluate(t), x(t))) @ np.atleast_1d(p.evaluate(t)) + np.atleast_1d(g.du(u.evaluate(t), x(t))))
