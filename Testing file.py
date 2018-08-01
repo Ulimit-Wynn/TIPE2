@@ -2,8 +2,9 @@ import scipy.optimize as optimize
 from Rewrite import *
 import numpy as np
 import matplotlib.pyplot as plt
+import time
 
-
+start = time.time()
 x0 = np.array([-1, 1])
 t = sympy.symbols('t')
 x, y = sympy.symbols('x y')
@@ -83,3 +84,5 @@ X2 = P.vector[1::2]
 plt.plot(time, X1)
 plt.plot(time, X2)
 plt.show()
+end = time.time()
+print((end - start)/60)
