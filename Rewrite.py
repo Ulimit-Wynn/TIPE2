@@ -3,12 +3,19 @@ import scipy.integrate as integrate
 import sympy
 import time
 
+
 T = 10
 n = 100
 dt = T / n
 grad_time = 0
 J_time = 0
+to_vector_time = 0
+integration_time = 0
 
+def multiply_vectors(a, b):
+    A = sympy.Matrix(a).transpose()
+    B = sympy.Matrix(b)
+    return np.array(A * B).ravel()
 
 def multiply(a, b):
     A = sympy.Matrix(a)
@@ -24,23 +31,6 @@ class DifferentiableFunction:
         self.vector = vector
         self.dim = dim
 
-    def to_vector(self):
-        dim = np.size(self.evaluate(0))
-        v = np.array([(self.evaluate(i * dt) + self.evaluate((i + 1) * dt)) / 2 for i in range(0, n)])
-        v = np.ravel(v)
-        self.vector = v
-        self.dim = dim
-
-    def to_func(self):
-        v = np.reshape(self.vector, (-1, self.dim))
-
-        def func(t):
-            if t == T:
-                return v[int(T / dt) - 1]
-            return v[int(t / dt)]
-
-        self.evaluate = func
-
 
 class TimeFunction:
     def __init__(self, f=None, vector=None, dim=None):
@@ -49,25 +39,36 @@ class TimeFunction:
         self.dim = dim
 
     def integrate(self, a, b):
+        global integration_time
+        start = time.time()
         v = []
         for i in range(0, np.size(self(0))):
             def call_index(t):
                 return self(t)[i]
 
-            v.append(integrate.quad(call_index, a, b)[0])
+            v.append(integrate.quad(call_index, a, b, epsabs=1e-1, epsrel=1e-1)[0])
         v = np.array(v)
+        end = time.time()
+        integration_time = integration_time + end - start
+        #print("integration time: ", integration_time)
         return v
 
     def to_vector(self):
+        global to_vector_time
+        start = time.time()
         dim = np.size(self.evaluate(0))
         v = np.array([(self.integrate(i * T / n, (i + 1) * T / n) * n / T) for i in range(0, n)])
+        #v = np.array([((self(i * dt) + self((i + 1) * dt)) / 2) for i in range(0, n)])
         v = np.ravel(v)
+        print(type(v))
         self.vector = v
         self.dim = dim
+        end = time.time()
+        to_vector_time += end - start
+        print("vector time: ", to_vector_time)
 
     def to_func(self):
         v = np.reshape(self.vector, (-1, self.dim))
-
         def func(t):
             if t == T:
                 return v[int(T / dt) - 1]
@@ -75,7 +76,7 @@ class TimeFunction:
 
         self.evaluate = func
 
-    def __call__(self, t, args=None):
+    def __call__(self, t):
         return self.evaluate(t)
 
 
@@ -100,7 +101,6 @@ class Functional:
         self.h = h
 
     def __call__(self, u):
-        start = time.time()
         u.to_func()
         x = self.system.solve(u)
 
@@ -108,14 +108,9 @@ class Functional:
             return self.g.evaluate(u(t), x(t))
 
         j = integrate.quad(g_integrable, 0, T)[0] + self.h.evaluate(x(T))
-        end = time.time()
-        global J_time
-        J_time = J_time + end - start
-        print(J_time)
         return j
 
     def grad(self, u):
-        start = time.time()
         x = self.system.solve(u)
         def func(time, y):
             return np.atleast_1d(
@@ -136,9 +131,6 @@ class Functional:
 
         grad = TimeFunction(grad_eval)
         end = time.time()
-        global grad_time
-        grad_time = grad_time + end - start
-        print(grad_time)
         return grad
 
     def grad_vector(self, u):
@@ -149,9 +141,21 @@ class Functional:
         return grad.vector
 
     def grad_wrapper(self, vector):
+        global grad_time
+        start = time.time()
         u = TimeFunction(vector=vector, dim=int(np.size(vector) / n))
-        return self.grad_vector(u)
+        grad = self.grad_vector(u)
+        end = time.time()
+        grad_time = grad_time + end - start
+        #print("grad time: ", grad_time)
+        return grad
 
     def J_wrapper(self, vector):
+        global J_time
+        start = time.time()
         u = TimeFunction(vector=vector, dim=int(np.size(vector) / n))
-        return self(u)
+        J = self(u)
+        end = time.time()
+        J_time = J_time + end - start
+        #print("J time: ", J_time)
+        return J
