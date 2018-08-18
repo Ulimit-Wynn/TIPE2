@@ -1,5 +1,5 @@
 import scipy.optimize as optimize
-from Rewrite import *
+from Solver import *
 import numpy as np
 import matplotlib.pyplot as plt
 import sympy

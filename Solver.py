@@ -65,7 +65,7 @@ class TimeFunction:
         start = time.time()
         dim = np.size(self.evaluate(0))
         v = np.array([(self.integrate(i * T / n, (i + 1) * T / n) * n / T) for i in range(0, n)])
-        #v = np.array([((self(i * dt) + self((i + 1 / 3) * dt) + self((i + 2 / 3) * dt) + self((i + 1) * dt)) / 4) for i in range(0, n)])
+        #gv = np.array([((self(i * dt) + self((i + 1 / 3) * dt) + self((i + 2 / 3) * dt) + self((i + 1) * dt)) / 4) for i in range(0, n)])
         v = np.ravel(v)
         self.vector = v
         self.dim = dim
