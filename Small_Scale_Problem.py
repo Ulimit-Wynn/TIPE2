@@ -11,27 +11,29 @@ cte = 10
 x0 = np.array([1, 0, 0, 1, 1])
 t = sympy.symbols('t')
 x, y, vx, vy, m = sympy.symbols('x y vx vy m')
-Fx, Fy = sympy.symbols('Fx Fy')
+thrust, theta = sympy.symbols('thrust theta')
 X = sympy.Matrix([x, y, vx, vy, m])
-U = sympy.Matrix([Fx, Fy])
+U = sympy.Matrix([thrust, theta])
 r = sympy.sqrt(x ** 2 + y ** 2)
 r1 = (x * vx + y * vy) / r
-theta = sympy.atan2(y, x)
-theta1 = (vx * y - x * vy) / (x ** 2 + y ** 2)
+phi = sympy.atan2(y, x)
+phi1 = (vx * y - x * vy) / (x ** 2 + y ** 2)
+thrust_matrix = np.zeros((n, 2 * n))
+for i in range(0, n):
+    thrust_matrix[i][2 * i] = 1
+print(thrust_matrix)
+
+ax = thrust * sympy.cos(theta) /m - alpha * x / (r ** 3) - vx * thrust / (beta * m)
+ay = thrust * sympy.sin(theta) /m - alpha * y / (r ** 3) - vy * thrust / (beta * m)
+mdot = -thrust / (beta)
 
 
-Force = sympy.sqrt(Fx ** 2 + Fy ** 2)
-ax = Fx/m - alpha * x / (r ** 3) - vx * Force / (beta * m)
-ay = Fy/m - alpha * y / (r ** 3) - vy * Force / (beta * m)
-mdot = -Force/ (beta)
-
-
-e = (r ** 2 * theta1) / (alpha) * sympy.sqrt((r ** 2 * theta1) ** 2 / (r ** 2) + + r1 ** 2)
-a = ((r ** 2 * theta1) ** 2 / (alpha)) / (1 - e ** 2)
+e = (r ** 2 * phi1) / (alpha) * sympy.sqrt((r ** 2 * phi1) ** 2 / (r ** 2) + + r1 ** 2)
+a = ((r ** 2 * phi1) ** 2 / (alpha)) / (1 - e ** 2)
 
 
 F = sympy.Matrix([vx, vy, ax, ay, mdot])
-H = 10 * ((x - 1) ** 2 + (y - 1) ** 2)
+H = ((x - 2) ** 2 + (y - 1) ** 2)
 G = 0 * (U.transpose() * U)[0]
 dFdU = F.jacobian(U)
 dFdX = F.jacobian(X)
@@ -70,22 +72,25 @@ def dhdx(x_at_t):
     return dhdx_tem(x_at_t).ravel()
 
 
+def u_eval(t):
+    return np.array([0, 0])
+
+def constraint(x):
+    return multiply(thrust_matrix, x)
+
+print(constraint(np.array([5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5])))
 f = DifferentiableFunction(f=f_eval, dfdx=dfdx, dfdu=dfdu)
 g = DifferentiableFunction(f=g_eval, dfdx=dgdx, dfdu=dgdu)
 h = DifferentiableFunction(f=h_eval, dfdx=dhdx)
 system = DynamicalSystem(f, x0)
 J = Functional(system, g, h)
-print(f.evaluate(0, np.array([-100.6894426, -6.45523019]), np.array([1, 0, 0, 1, 1])))
-
-def u_eval(t):
-    return np.array([0, 0])
-
-
 time = np.linspace(0, T, n)
 u = TimeFunction(u_eval)
 u.to_vector()
+
+
 start = chrono.time()
-result = optimize.minimize(J.J_wrapper, u.vector, jac=J.grad_wrapper, tol=10 ** (-13))
+result = optimize.minimize(J.J_wrapper, u.vector, jac=J.grad_wrapper, tol=10 ** (-13), constraints=[{"type":"ineq", "fun":constraint}])
 time = np.linspace(0, T, n)
 print(result)
 u1 = TimeFunction(vector=result.x, dim=2)

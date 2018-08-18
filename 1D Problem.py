@@ -16,7 +16,7 @@ U = sympy.Matrix([Vx])
 
 F = U
 H = 0 * x
-G = 1 / 2 *(U.transpose() * U)[0] + (X.transpose() * X)[0]
+G = 1 / 2 *((U.transpose() * U)[0] + (X.transpose() * X)[0])
 dFdU = F.jacobian(U)
 dFdX = F.jacobian(X)
 dHdX = H.diff(X)
