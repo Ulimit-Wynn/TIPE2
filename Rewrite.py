@@ -3,8 +3,8 @@ import scipy.integrate as integrate
 import time
 import sympy
 
-T = 360
-n = 3600
+T = 1
+n = 10
 dt = T / n
 grad_time = 0
 J_time = 0
@@ -12,10 +12,10 @@ to_vector_time = 0
 integration_time = 0
 G = 6.673 * (10 ** (-11))
 M = 5.972 * (10 ** (24))
-isp = 10
+isp = 300
 g = 9.81
 e0 = 0.715
-a0 = 24582000
+a0 = 36180000
 
 
 def multiply_vectors(a, b):
@@ -64,21 +64,22 @@ class TimeFunction:
         global to_vector_time
         start = time.time()
         dim = np.size(self.evaluate(0))
-        #v = np.array([(self.integrate(i * T / n, (i + 1) * T / n) * n / T) for i in range(0, n)])
-        v = np.array([((self(i * dt) + self((i + 1/2) * dt) + self((i + 1) * dt)) / 3) for i in range(0, n)])
+        v = np.array([(self.integrate(i * T / n, (i + 1) * T / n) * n / T) for i in range(0, n)])
+        #v = np.array([((self(i * dt) + self((i + 1 / 3) * dt) + self((i + 2 / 3) * dt) + self((i + 1) * dt)) / 4) for i in range(0, n)])
         v = np.ravel(v)
         self.vector = v
         self.dim = dim
         end = time.time()
         to_vector_time += end - start
-        #print("vector time: ", to_vector_time)
+        # print("vector time: ", to_vector_time)
 
     def to_func(self):
         v = np.reshape(self.vector, (-1, self.dim))
+
         def func(t):
             if t == T:
                 return v[int(T / dt) - 1]
-            if t > T:
+            if t > T or t < 0:
                 return np.zeros(self.dim)
             return v[int(t / dt)]
 
@@ -95,7 +96,8 @@ class DynamicalSystem:
 
     def solve(self, u):
         def func(t, x_at_t):
-            return self.f.evaluate(t, u.evaluate(t), x_at_t)
+            dx = self.f.evaluate(t, u.evaluate(t), x_at_t)
+            return dx
 
         solve = integrate.solve_ivp(func, (0, T), self.x0, dense_output=True, rtol=10 ** (-13), atol=10 ** (-8)).sol
         solution = TimeFunction(f=solve.__call__)
@@ -111,21 +113,16 @@ class Functional:
     def __call__(self, u):
         u.to_func()
         x = self.system.solve(u)
-        print("x values: ")
-        print(x(0))
-        print(x(10))
-        print(x(100))
-        print(x(360))
 
         def g_integrable(t):
             return self.g.evaluate(u(t), x(t))
 
+        print("h: ", self.h.evaluate(x(T)))
         j = integrate.quad(g_integrable, 0, T)[0] + self.h.evaluate(x(T))
         return j
 
     def grad(self, u):
         x = self.system.solve(u)
-        print(x)
 
         def func(time, y):
             return np.atleast_1d(
@@ -140,7 +137,6 @@ class Functional:
 
         p = TimeFunction(f=p_eval)
         p.to_vector()
-        print("p: ", p.vector)
 
         def grad_eval(time):
             return np.atleast_1d(
@@ -166,8 +162,8 @@ class Functional:
         grad = self.grad_vector(u)
         end = time.time()
         grad_time = grad_time + end - start
-        #print("grad time: ", grad_time)
-        #print(grad)
+        # print("grad time: ", grad_time)
+        # print(grad)
         print("grad: ", grad)
         return grad
 
@@ -178,6 +174,6 @@ class Functional:
         J = self(u)
         end = time.time()
         J_time = J_time + end - start
-        #print("J time: ", J_time)
+        # print("J time: ", J_time)
         print("J :", J)
         return J
