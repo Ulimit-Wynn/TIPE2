@@ -6,8 +6,7 @@ import sympy
 import time as chrono
 
 alpha = 1
-beta = 50
-cte = 10
+beta = 1
 x0 = np.array([1, 0, 0, 1, 1])
 t = sympy.symbols('t')
 x, y, vx, vy, m = sympy.symbols('x y vx vy m')
@@ -19,17 +18,19 @@ r1 = (x * vx + y * vy) / r
 phi = sympy.atan2(y, x)
 phi1 = (vx * y - x * vy) / (x ** 2 + y ** 2)
 thrust_matrix = np.zeros((n, 2 * n))
+fuel_matrix = np.zeros(2 * n)
 for i in range(0, n):
     thrust_matrix[i][2 * i] = 1
-print(thrust_matrix)
+for i in range(0, n):
+    fuel_matrix[2 * i] = dt/beta
 
 ax = thrust * sympy.cos(theta) /m - alpha * x / (r ** 3) - vx * thrust / (beta * m)
 ay = thrust * sympy.sin(theta) /m - alpha * y / (r ** 3) - vy * thrust / (beta * m)
 mdot = -thrust / (beta)
 
 
-e = (r ** 2 * phi1) / (alpha) * sympy.sqrt((r ** 2 * phi1) ** 2 / (r ** 2) + + r1 ** 2)
-a = ((r ** 2 * phi1) ** 2 / (alpha)) / (1 - e ** 2)
+#e = (r ** 2 * phi1) / (alpha) * sympy.sqrt((r ** 2 * phi1) ** 2 / (r ** 2) + + r1 ** 2)
+#a = ((r ** 2 * phi1) ** 2 / (alpha)) / (1 - e ** 2)
 
 
 F = sympy.Matrix([vx, vy, ax, ay, mdot])
@@ -73,12 +74,19 @@ def dhdx(x_at_t):
 
 
 def u_eval(t):
-    return np.array([0, 0])
+    return np.array([1, 1])
 
-def constraint(x):
+def thrust_constraint(x):
     return multiply(thrust_matrix, x)
 
-print(constraint(np.array([5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5])))
+
+def fuel_constraint(x):
+    return 1 - fuel_matrix @ x
+
+print('fuel: ', fuel_constraint(np.ones(2 * n)))
+
+
+
 f = DifferentiableFunction(f=f_eval, dfdx=dfdx, dfdu=dfdu)
 g = DifferentiableFunction(f=g_eval, dfdx=dgdx, dfdu=dgdu)
 h = DifferentiableFunction(f=h_eval, dfdx=dhdx)
@@ -90,7 +98,7 @@ u.to_vector()
 
 
 start = chrono.time()
-result = optimize.minimize(J.J_wrapper, u.vector, jac=J.grad_wrapper, tol=10 ** (-13), constraints=[{"type":"ineq", "fun":constraint}])
+result = optimize.minimize(J.J_wrapper, u.vector, jac=J.grad_wrapper, constraints=[{"type":"ineq", "fun":thrust_constraint}, {"type":"ineq", "fun":fuel_constraint}])
 time = np.linspace(0, T, n)
 print(result)
 u1 = TimeFunction(vector=result.x, dim=2)

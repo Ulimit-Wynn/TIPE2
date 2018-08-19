@@ -4,7 +4,7 @@ import time
 import sympy
 
 T = 1
-n = 10
+n = 100
 dt = T / n
 grad_time = 0
 J_time = 0
@@ -53,7 +53,7 @@ class TimeFunction:
             def call_index(t):
                 return self(t)[i]
 
-            v.append(integrate.quad(call_index, a, b, epsabs=1e-1, epsrel=1e-1)[0])
+            v.append(integrate.quad(call_index, a, b, epsabs=1e-14, epsrel=1e-14)[0])
         v = np.array(v)
         end = time.time()
         integration_time = integration_time + end - start
@@ -118,7 +118,7 @@ class Functional:
             return self.g.evaluate(u(t), x(t))
 
         print("h: ", self.h.evaluate(x(T)))
-        j = integrate.quad(g_integrable, 0, T)[0] + self.h.evaluate(x(T))
+        j = integrate.quad(g_integrable, 0, T, epsrel=1e-14, epsabs=1e-14)[0] + self.h.evaluate(x(T))
         return j
 
     def grad(self, u):
