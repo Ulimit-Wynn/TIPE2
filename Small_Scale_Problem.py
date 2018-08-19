@@ -81,7 +81,7 @@ def thrust_constraint(x):
 
 
 def fuel_constraint(x):
-    return 1 - fuel_matrix @ x
+    return 1.1 - fuel_matrix @ x
 
 print('fuel: ', fuel_constraint(np.ones(2 * n)))
 

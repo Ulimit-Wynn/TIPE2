@@ -18,11 +18,6 @@ e0 = 0.715
 a0 = 36180000
 
 
-def multiply_vectors(a, b):
-    A = np.matrix(a).transpose()
-    B = np.matrix(b)
-    return np.array(A * B).ravel()[0]
-
 
 def multiply(a, b):
     A = np.matrix(a)
