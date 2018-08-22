@@ -1,9 +1,9 @@
 import numpy as np
 import scipy.integrate as integrate
 import time
-import sympy
 
-T = 1
+
+T = 10
 n = 100
 dt = T / n
 grad_time = 0
@@ -16,13 +16,6 @@ isp = 300
 g = 9.81
 e0 = 0.715
 a0 = 36180000
-
-
-
-def multiply(a, b):
-    A = np.matrix(a)
-    B = np.matrix(b).transpose()
-    return np.array(A * B).ravel()
 
 
 class DifferentiableFunction:
@@ -112,7 +105,8 @@ class Functional:
         def g_integrable(t):
             return self.g.evaluate(u(t), x(t))
 
-        print("h: ", self.h.evaluate(x(T)))
+        #print("h: ", self.h.evaluate(x(T)))
+        print("dhdx: ", self.h.dx(x(T)))
         j = integrate.quad(g_integrable, 0, T, epsrel=1e-14, epsabs=1e-14)[0] + self.h.evaluate(x(T))
         return j
 
@@ -121,8 +115,8 @@ class Functional:
 
         def func(time, y):
             return np.atleast_1d(
-                multiply(np.atleast_1d(self.system.f.dx(T - time, u(T - time), x(T - time))),
-                         np.atleast_1d(y)) + self.g.dx(u(T - time),
+                np.atleast_1d(self.system.f.dx(T - time, u(T - time), x(T - time))) @
+                         np.atleast_1d(y) + self.g.dx(u(T - time),
                                                        x(T - time)))
 
         p_sol = integrate.solve_ivp(func, (0, T), np.atleast_1d(self.h.dx(x(T))), dense_output=True).sol
@@ -135,9 +129,9 @@ class Functional:
 
         def grad_eval(time):
             return np.atleast_1d(
-                multiply(np.atleast_1d(self.system.f.du(time, u(time), x(time)).transpose()),
+                np.atleast_1d(self.system.f.du(time, u(time), x(time)).transpose()) @
                          np.atleast_1d(p(time))) + np.atleast_1d(
-                    self.g.du(u(time), x(time))))
+                    self.g.du(u(time), x(time)))
 
         grad = TimeFunction(grad_eval)
         end = time.time()
@@ -148,7 +142,7 @@ class Functional:
         grad = self.grad(u)
         grad.to_vector()
         grad.vector = T / n * grad.vector
-        return grad.vector
+        return grad
 
     def grad_wrapper(self, vector):
         global grad_time
@@ -158,9 +152,8 @@ class Functional:
         end = time.time()
         grad_time = grad_time + end - start
         # print("grad time: ", grad_time)
-        # print(grad)
-        print("grad: ", grad)
-        return grad
+        #print("grad: ", grad)
+        return grad.vector
 
     def J_wrapper(self, vector):
         global J_time

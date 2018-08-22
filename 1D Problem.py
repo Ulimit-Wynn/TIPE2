@@ -73,6 +73,14 @@ time = np.linspace(0, T, n)
 print(result)
 u1 = TimeFunction(vector=result.x, dim=1)
 u1.to_func()
+grad = result.jac
+print("final grad: ", grad)
+d = np.ones(np.size(u.vector))
+eps = 0.0001
+u_test1 = TimeFunction(vector=u1.vector + eps * d, dim=u.dim)
+u_test2 = TimeFunction(vector=u1.vector - eps * d, dim=u.dim)
+print("d @ grad: ", d @ grad)
+print("Finite difference: ", (J(u_test1) + J(u_test2)) / 2 / eps)
 
 P = TimeFunction(f=system.solve(u1))
 P.to_vector()
