@@ -5,32 +5,34 @@ import matplotlib.pyplot as plt
 import sympy
 import time as chrono
 
-start = chrono.time()
-x0 = np.array([6371000, 0, 0, 0, 549000])
+alpha = G * M
+x0 = np.array([6371000, 0, 0, 0, 505846])
 t = sympy.symbols('t')
 x, y, vx, vy, m = sympy.symbols('x y vx vy m')
-Fx, Fy = sympy.symbols('Fx Fy')
+thrust, theta = sympy.symbols('thrust theta')
 X = sympy.Matrix([x, y, vx, vy, m])
-U = sympy.Matrix([Fx, Fy])
+U = sympy.Matrix([thrust, theta])
 r = sympy.sqrt(x ** 2 + y ** 2)
 r1 = (x * vx + y * vy) / r
-theta = sympy.atan2(y, x)
-theta1 = (vy * x - vx * y) / (x ** 2 + y ** 2)
+phi = sympy.atan2(y, x)
+phi1 = (vx * y - x * vy) / (x ** 2 + y ** 2)
+thrust_matrix = np.zeros((n, 2 * n))
+fuel_matrix = np.zeros(2 * n)
+for i in range(0, n):
+    thrust_matrix[i][2 * i] = 1
+for i in range(0, n):
+    fuel_matrix[2 * i] = dt / isp
+ax = thrust * sympy.cos(theta) / m - alpha * x / (r ** 3) + vx * thrust / (isp * g0 * m)
+ay = thrust * sympy.sin(theta) / m - alpha * y / (r ** 3) + vy * thrust / (isp * g0 * m)
+mdot = -thrust / isp / g0
 
-Force = sympy.sqrt(Fx ** 2 + Fy ** 2)
-ax = Fx/m - M * G * x / (r ** 3) - vx * Force / (g * isp * m)
-ay = Fy/m - M * G * y / (r ** 3) - vy * Force / (g * isp * m)
-mdot = -Force / (g * isp)
-
-
-e = (r ** 2 * theta1) / (G * M) * sympy.sqrt((r ** 2 * theta1) ** 2 / (r ** 2) + r1 ** 2)
-a = ((r ** 2 * theta1) ** 2 / (G * M)) / (1 - e ** 2)
-
+energy = (1 / 2 * (vx ** 2 + vy ** 2) - alpha / r)
+moment = (vx * y - x * vy)
 
 F = sympy.Matrix([vx, vy, ax, ay, mdot])
-#H = (((e - e0) ** 2) / (e0 ** 2) + ((a - a0) ** 2) / (a0 ** 2))
-H = (((x - 700000) ** 2)/(7000000 ** 2) + ((y - 250000) ** 2) / (250000 ** 2))
-G = 0 * (((U.transpose() * U)[0]) / ((549000 * T) ** 2))
+
+H = (moment - moment0) ** 2 / (moment0 ** 2) + (energy - energy0) ** 2 / (energy0 ** 2)
+G = 0 * (thrust / (isp * g0)) / 505000
 dFdU = F.jacobian(U)
 dFdX = F.jacobian(X)
 dHdX = H.diff(X)
@@ -46,14 +48,14 @@ dgdx_tem = sympy.lambdify((U, X), dGdX)
 dgdu_tem = sympy.lambdify((U, X), dGdU)
 
 
-def f_eval(t, u_at_t, x_at_t):
-    return f_tem(t, u_at_t, x_at_t).ravel()
+def f_eval(time, u_at_t, x_at_t):
+    return f_tem(time, u_at_t, x_at_t).ravel()
 
 
-def dfdu(t, u_at_t, x_at_t):
-    if u_at_t[0] == 0 and u_at_t[1] == 0:
-        return np.array([[0, 0], [0, 0], [1/x_at_t[4], 0], [0, 1/x_at_t[4]], [0, 0]])
-    return dfdu_tem(t, u_at_t, x_at_t)
+def dfdu(time, u_at_t, x_at_t):
+    if u_at_t[0] == 0:
+        return np.array([[0, 0], [0, 0], [1 / x_at_t[4], 0], [0, 1 / x_at_t[4]], [0, 0]])
+    return dfdu_tem(time, u_at_t, x_at_t)
 
 
 def dgdu(u_at_t, x_at_t):
@@ -67,42 +69,69 @@ def dgdx(u_at_t, x_at_t):
 def dhdx(x_at_t):
     return dhdx_tem(x_at_t).ravel()
 
+
+def u_eval(time):
+    if time<200:
+        return np.array([5100000, time/200])
+    return np.array([801000, np.pi/2])
+
+def thrust_constraint(vector):
+    res = thrust_matrix @ vector
+    return res
+
+
+def fuel_constraint(vector):
+    return 31200 - np.sum(vector[::2]) * dt / (isp * g0)
+
 f = DifferentiableFunction(f=f_eval, dfdx=dfdx, dfdu=dfdu)
 g = DifferentiableFunction(f=g_eval, dfdx=dgdx, dfdu=dgdu)
 h = DifferentiableFunction(f=h_eval, dfdx=dhdx)
 system = DynamicalSystem(f, x0)
 J = Functional(system, g, h)
-
-
-def u_eval(t):
-    if t<T/2.72:
-        return np.array([6804000, 0])
-    return np.array([0, 617000])
-
 u = TimeFunction(u_eval)
 u.to_vector()
-result = optimize.minimize(J.J_wrapper, u.vector, jac=J.grad_wrapper, tol=10 ** (-20))
-time = np.linspace(0, T, n)
+
+en = sympy.lambdify((X,), energy)
+mom = sympy.lambdify((X,), moment)
+id_en = en(np.array([6.29155739e+06, 1.70173759e+06, -3.03191864e+03, 9.65228389e+03,
+  5.04009971e+04]))
+print(energy0)
+id_mom = mom(np.array([6.29155739e+06, 1.70173759e+06, -3.03191864e+03, 9.65228389e+03,
+  5.04009971e+04]))
+print(moment0)
+id_e = np.sqrt(1 + 2 * id_en * (id_mom ** 2)/(alpha ** 2))
+print(id_e)
+print(id_mom ** 2 / alpha /(1 - id_e ** 2))
+start = chrono.time()
+result = optimize.minimize(J.J_wrapper, u.vector, jac=J.grad_wrapper, method='COBYLA', constraints=({"type": "ineq", "fun": thrust_constraint}, {"type": "ineq", "fun": fuel_constraint}))
+time_array = np.linspace(0, T, n)
 print(result)
 u1 = TimeFunction(vector=result.x, dim=2)
 u1.to_func()
-
-
+"""grad = result.jac
+print("final grad: ", grad)
+d = np.ones(np.size(u.vector))
+eps = 0.0001
+u_test1 = TimeFunction(vector=u1.vector + eps * d, dim=u.dim)
+u_test2 = TimeFunction(vector=u1.vector - eps * d, dim=u.dim)
+print("d @ grad: ", d @ grad)
+print("Finite difference: ", (J(u_test1) + J(u_test2)) / 2 / eps)
+"""
 P = TimeFunction(f=system.solve(u1))
 P.to_vector()
-print(dfdu(T, u1(T), P(T)))
 X1 = P.vector[::5]
 X2 = P.vector[1::5]
 print(P(T))
 plt.figure(1)
-plt.plot(time, X1)
+plt.plot(time_array, X1)
 plt.figure(2)
-plt.plot(time, X2)
+plt.plot(time_array, X2)
 plt.figure(3)
 plt.plot(X1, X2)
 plt.figure(4)
-plt.plot(time, u1.vector[::2])
+plt.plot(time_array, u1.vector[::2])
 plt.figure(5)
-plt.plot(time, u1.vector[1::2])
-#end = chrono.time()
+plt.plot(time_array, u1.vector[1::2])
+end = chrono.time()
+print("time: ", end - start)
 plt.show()

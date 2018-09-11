@@ -25,16 +25,20 @@ for i in range(0, n):
     fuel_matrix[2 * i] = dt / beta
 print(fuel_matrix)
 
-ax = thrust * sympy.cos(theta) / m - alpha * x / (r ** 3) - vx * thrust / (beta * m)
-ay = thrust * sympy.sin(theta) / m - alpha * y / (r ** 3) - vy * thrust / (beta * m)
+ax = thrust * sympy.cos(theta) / m - alpha * x / (r ** 3) + vx * thrust / (beta * m)
+ay = thrust * sympy.sin(theta) / m - alpha * y / (r ** 3) + vy * thrust / (beta * m)
 mdot = -thrust / beta
 
-energie = 1 / 2 * m* (vx ** 2 + vy ** 2) - m * alpha / r
-moment = vx * y - x * vy
+energy = m * (1 / 2 * (vx ** 2 + vy ** 2) - alpha / r)
+moment = m * (vx * y - x * vy)
 
 F = sympy.Matrix([vx, vy, ax, ay, mdot])
-H = (energie + 1) ** 2
-G = 0 * (U.transpose() * U)[0]
+
+H = (energy - 2) ** 2 + (moment - 1) ** 2
+G = thrust
+print(F)
+print(G)
+print(H)
 dFdU = F.jacobian(U)
 dFdX = F.jacobian(X)
 dHdX = H.diff(X)
@@ -73,7 +77,7 @@ def dhdx(x_at_t):
 
 
 def u_eval(time):
-    return np.array([0, np.pi])
+    return np.array([0, 0])
 
 
 def thrust_constraint(vector):
@@ -82,7 +86,7 @@ def thrust_constraint(vector):
 
 
 def fuel_constraint(vector):
-    return 0.7 - np.sum(vector) * dt / beta
+    return 0.5 - np.sum(vector[::2]) * dt / beta
 
 f = DifferentiableFunction(f=f_eval, dfdx=dfdx, dfdu=dfdu)
 g = DifferentiableFunction(f=g_eval, dfdx=dgdx, dfdu=dgdu)
@@ -93,7 +97,7 @@ u = TimeFunction(u_eval)
 u.to_vector()
 
 start = chrono.time()
-result = optimize.minimize(J.J_wrapper, u.vector, jac=J.grad_wrapper, tol=1e-14, constraints=[{"type": "ineq", "fun": thrust_constraint}, {"type": "ineq", "fun": fuel_constraint}])
+result = optimize.minimize(J.J_wrapper, u.vector, jac=J.grad_wrapper, tol=1e-10, constraints=[{"type": "ineq", "fun": thrust_constraint}, {"type": "ineq", "fun": fuel_constraint}])
 time_array = np.linspace(0, T, n)
 print(result)
 u1 = TimeFunction(vector=result.x, dim=2)
@@ -101,11 +105,11 @@ u1.to_func()
 grad = result.jac
 print("final grad: ", grad)
 d = np.ones(np.size(u.vector))
-eps = 0.0001
+eps = 1e-10
 u_test1 = TimeFunction(vector=u1.vector + eps * d, dim=u.dim)
 u_test2 = TimeFunction(vector=u1.vector - eps * d, dim=u.dim)
 print("d @ grad: ", d @ grad)
-print("Finite difference: ", (J(u_test1) + J(u_test2)) / 2 / eps)
+print("Finite difference: ", (J(u_test1) - J(u_test2)) / 2 / eps)
 
 P = TimeFunction(f=system.solve(u1))
 P.to_vector()

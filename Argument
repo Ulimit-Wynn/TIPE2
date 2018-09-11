@@ -1,0 +1,3 @@
+eps = 1e-10
+du = np.ones(np.size(u.vector)) * eps
+(you can run the small scale problem optimiser for u)
