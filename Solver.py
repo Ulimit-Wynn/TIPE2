@@ -3,15 +3,14 @@ import scipy.integrate as integrate
 import time
 
 
-T = 600
-n = 600
+T = 10
+n = 100
 dt = T / n
 grad_time = 0
 J_time = 0
 to_vector_time = 0
 integration_time = 0
 solving_time = 0
-j_min = 1e99
 G = 6.673 * (10 ** (-11))
 M = 5.972 * (10 ** (24))
 isp = 300
@@ -116,12 +115,6 @@ class Functional:
 
         #print("h: ", self.h.evaluate(x(T)))
         j = integrate.quad(g_integrable, 0, T, epsrel=1e-14, epsabs=1e-14)[0] + self.h.evaluate(x(T))
-        global j_min
-        if j < j_min:
-            j_min = j
-            u_manual = u
-            print("best u: ",u_manual.vector)
-
         return j
 
     def grad(self, u):
@@ -131,7 +124,7 @@ class Functional:
 
         def func(time, y):
             return np.atleast_1d(
-                np.atleast_1d(self.system.f.dx(T - time, u(T - time), x(T - time))) @
+                np.atleast_1d(self.system.f.dx(T - time, u(T - time), x(T - time)).transpose()) @
                          np.atleast_1d(y) + self.g.dx(u(T - time),
                                                        x(T - time)))
 
@@ -141,7 +134,6 @@ class Functional:
             return p_sol(T - time)
 
         p = TimeFunction(f=p_eval)
-        p.to_vector()
 
         def grad_eval(time):
             return np.atleast_1d(

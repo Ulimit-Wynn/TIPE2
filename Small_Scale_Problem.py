@@ -34,7 +34,7 @@ moment = m * (vx * y - x * vy)
 
 F = sympy.Matrix([vx, vy, ax, ay, mdot])
 
-H = (energy - 2) ** 2 + (moment - 1) ** 2
+H = x
 G = thrust
 print(F)
 print(G)
@@ -105,21 +105,29 @@ u1.to_func()
 grad = result.jac
 print("final grad: ", grad)
 d = np.ones(np.size(u.vector))
-eps = 1e-10
-u_test1 = TimeFunction(vector=u1.vector + eps * d, dim=u.dim)
-u_test2 = TimeFunction(vector=u1.vector - eps * d, dim=u.dim)
-print("d @ grad: ", d @ grad)
-print("Finite difference: ", (J(u_test1) - J(u_test2)) / 2 / eps)
+for i in range(2, 10):
+    print(" ")
+    print("eps=", "10^-", str(i))
+    eps = 10 ** (-1 * i)
+    u_test1 = TimeFunction(vector=u1.vector + eps * d, dim=u.dim)
+    u_test2 = TimeFunction(vector=u1.vector - eps * d, dim=u.dim)
+    print("d @ grad: ", d @ grad)
+    print("Finite difference: ", (J(u_test1) - J(u_test2)) / 2 / eps)
 
 P = TimeFunction(f=system.solve(u1))
 P.to_vector()
+print(u1(2.01))
+print(P(2.01))
+print(f.evaluate(2.01, u1(2.01), P(2.01)))
 X1 = P.vector[::5]
 X2 = P.vector[1::5]
+gr1 = grad[::2]
+gr2 = grad[1::2]
 print(P(T))
 plt.figure(1)
-plt.plot(time_array, X1)
+plt.plot(time_array, gr1)
 plt.figure(2)
-plt.plot(time_array, X2)
+plt.plot(time_array, gr2)
 plt.figure(3)
 plt.plot(X1, X2)
 plt.figure(4)
