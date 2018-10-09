@@ -3,7 +3,7 @@ import scipy.integrate as integrate
 import time
 
 
-T = 10
+T = 5
 n = 100
 dt = T / n
 grad_time = 0
@@ -18,7 +18,9 @@ g0 = 9.81
 e0 = 0.715
 a0 = 24582000
 moment0 = np.sqrt(a0 * (1 - e0 ** 2) * G * M)
-energy0 = (e0 ** 2 - 1) * ((G * M) ** 2) / (2 * moment0 ** 2)
+energy0 = G * M / (2*a0)
+print(moment0)
+print(energy0)
 
 
 class DifferentiableFunction:
@@ -51,11 +53,11 @@ class TimeFunction:
         # print("integration time: ", integration_time)
         return v
 
-    def to_vector(self):
+    def to_vector(self, step=n):
         global to_vector_time
         start = time.time()
         dim = np.size(self.evaluate(0))
-        v = np.array([(self.integrate(i * T / n, (i + 1) * T / n) * n / T) for i in range(0, n)])
+        v = np.array([(self.integrate(i * T / step, (i + 1) * T / step) * step / T) for i in range(0, step)])
         #v = np.array([((self(i * dt) + self((i + 1 / 4) * dt) + self((i + 2 / 4) * dt) + self((i + 3 / 4)) +self((i + 1) * dt)) / 5) for i in range(0, n)])
         v = np.ravel(v)
         self.vector = v
@@ -115,6 +117,7 @@ class Functional:
 
         #print("h: ", self.h.evaluate(x(T)))
         j = integrate.quad(g_integrable, 0, T, epsrel=1e-14, epsabs=1e-14)[0] + self.h.evaluate(x(T))
+        print("h: ", self.h.evaluate(x(T)))
         return j
 
     def grad(self, u):

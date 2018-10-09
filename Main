@@ -1,0 +1,177 @@
+[1mdiff --git a/Main.py b/Main.py[m
+[1mindex f8c987e..302205b 100644[m
+[1m--- a/Main.py[m
+[1m+++ b/Main.py[m
+[36m@@ -72,7 +72,7 @@[m [mdef dhdx(x_at_t):[m
+ [m
+ def u_eval(time):[m
+     if time<200:[m
+[31m-        return np.array([5100000, time/200])[m
+[32m+[m[32m        return np.array([5100000, 0])[m
+     return np.array([801000, np.pi/2])[m
+ [m
+ def thrust_constraint(vector):[m
+[36m@@ -91,24 +91,14 @@[m [mJ = Functional(system, g, h)[m
+ u = TimeFunction(u_eval)[m
+ u.to_vector()[m
+ [m
+[31m-en = sympy.lambdify((X,), energy)[m
+[31m-mom = sympy.lambdify((X,), moment)[m
+[31m-id_en = en(np.array([6.29155739e+06, 1.70173759e+06, -3.03191864e+03, 9.65228389e+03,[m
+[31m-  5.04009971e+04]))[m
+[31m-print(energy0)[m
+[31m-id_mom = mom(np.array([6.29155739e+06, 1.70173759e+06, -3.03191864e+03, 9.65228389e+03,[m
+[31m-  5.04009971e+04]))[m
+[31m-print(moment0)[m
+[31m-id_e = np.sqrt(1 + 2 * id_en * (id_mom ** 2)/(alpha ** 2))[m
+[31m-print(id_e)[m
+[31m-print(id_mom ** 2 / alpha /(1 - id_e ** 2))[m
+[32m+[m
+ start = chrono.time()[m
+[31m-result = optimize.minimize(J.J_wrapper, u.vector, jac=J.grad_wrapper, method='COBYLA', constraints=({"type": "ineq", "fun": thrust_constraint}, {"type": "ineq", "fun": fuel_constraint}))[m
+[32m+[m[32mresult = optimize.minimize(J.J_wrapper, u.vector, jac=J.grad_wrapper, constraints=({"type": "ineq", "fun": thrust_constraint}, {"type": "ineq", "fun": fuel_constraint}))[m
+ time_array = np.linspace(0, T, n)[m
+ print(result)[m
+ u1 = TimeFunction(vector=result.x, dim=2)[m
+ u1.to_func()[m
+[31m-"""grad = result.jac[m
+[32m+[m[32mgrad = result.jac[m
+ print("final grad: ", grad)[m
+ d = np.ones(np.size(u.vector))[m
+ eps = 0.0001[m
+[36m@@ -116,7 +106,7 @@[m [mu_test1 = TimeFunction(vector=u1.vector + eps * d, dim=u.dim)[m
+ u_test2 = TimeFunction(vector=u1.vector - eps * d, dim=u.dim)[m
+ print("d @ grad: ", d @ grad)[m
+ print("Finite difference: ", (J(u_test1) + J(u_test2)) / 2 / eps)[m
+[31m-"""[m
+[32m+[m
+ P = TimeFunction(f=system.solve(u1))[m
+ P.to_vector()[m
+ X1 = P.vector[::5][m
+[1mdiff --git a/Small_Scale_Problem.py b/Small_Scale_Problem.py[m
+[1mindex 208093e..b297a5c 100644[m
+[1m--- a/Small_Scale_Problem.py[m
+[1m+++ b/Small_Scale_Problem.py[m
+[36m@@ -6,8 +6,8 @@[m [mimport sympy[m
+ import time as chrono[m
+ [m
+ alpha = 1[m
+[31m-beta = 1[m
+[31m-x0 = np.array([1, 0, 0, 1, 1])[m
+[32m+[m[32mbeta = 3[m
+[32m+[m[32mx0 = np.array([0.2, 0, 0, 0, 1])[m
+ t = sympy.symbols('t')[m
+ x, y, vx, vy, m = sympy.symbols('x y vx vy m')[m
+ thrust, theta = sympy.symbols('thrust theta')[m
+[36m@@ -23,19 +23,19 @@[m [mfor i in range(0, n):[m
+     thrust_matrix[i][2 * i] = 1[m
+ for i in range(0, n):[m
+     fuel_matrix[2 * i] = dt / beta[m
+[31m-print(fuel_matrix)[m
+ [m
+ ax = thrust * sympy.cos(theta) / m - alpha * x / (r ** 3) + vx * thrust / (beta * m)[m
+ ay = thrust * sympy.sin(theta) / m - alpha * y / (r ** 3) + vy * thrust / (beta * m)[m
+ mdot = -thrust / beta[m
+ [m
+[31m-energy = m * (1 / 2 * (vx ** 2 + vy ** 2) - alpha / r)[m
+[31m-moment = m * (vx * y - x * vy)[m
+[32m+[m[32menergy = (1 / 2 * (vx ** 2 + vy ** 2) - alpha / r)[m
+[32m+[m[32mmoment = (vx * y - x * vy)[m
+ [m
+ F = sympy.Matrix([vx, vy, ax, ay, mdot])[m
+[31m-[m
+[31m-H = x[m
+[31m-G = thrust[m
+[32m+[m[32menergy_i = (0.715**2 - 1) * alpha ** 2 / (2 * moment ** 2)[m
+[32m+[m[32mH = (energy - energy_i) ** 2 + (moment + 1) ** 2[m
+[32m+[m[32mG = 0 * thrust[m
+[32m+[m[32mprint(H)[m
+ print(F)[m
+ print(G)[m
+ print(H)[m
+[36m@@ -77,7 +77,7 @@[m [mdef dhdx(x_at_t):[m
+ [m
+ [m
+ def u_eval(time):[m
+[31m-    return np.array([0, 0])[m
+[32m+[m[32m    return np.array([0.01, 0])[m
+ [m
+ [m
+ def thrust_constraint(vector):[m
+[36m@@ -86,25 +86,27 @@[m [mdef thrust_constraint(vector):[m
+ [m
+ [m
+ def fuel_constraint(vector):[m
+[31m-    return 0.5 - np.sum(vector[::2]) * dt / beta[m
+[32m+[m[32m    return 0.9 - np.sum(vector[::2]) * dt / beta[m
+[32m+[m
+ [m
+ f = DifferentiableFunction(f=f_eval, dfdx=dfdx, dfdu=dfdu)[m
+ g = DifferentiableFunction(f=g_eval, dfdx=dgdx, dfdu=dgdu)[m
+ h = DifferentiableFunction(f=h_eval, dfdx=dhdx)[m
+ system = DynamicalSystem(f, x0)[m
+ J = Functional(system, g, h)[m
+[31m-u = TimeFunction(u_eval)[m
+[32m+[m[32mu = TimeFunction(f=u_eval)[m
+ u.to_vector()[m
+ [m
+ start = chrono.time()[m
+[31m-result = optimize.minimize(J.J_wrapper, u.vector, jac=J.grad_wrapper, tol=1e-10, constraints=[{"type": "ineq", "fun": thrust_constraint}, {"type": "ineq", "fun": fuel_constraint}])[m
+[32m+[m[32mresult = optimize.minimize(J.J_wrapper, u.vector, jac=J.grad_wrapper, tol=1e-6,[m
+[32m+[m[32m                           constraints=[{"type": "ineq", "fun": thrust_constraint},[m
+[32m+[m[32m                                        {"type": "ineq", "fun": fuel_constraint}])[m
+ time_array = np.linspace(0, T, n)[m
+ print(result)[m
+ u1 = TimeFunction(vector=result.x, dim=2)[m
+ u1.to_func()[m
+ grad = result.jac[m
+[31m-print("final grad: ", grad)[m
+[31m-d = np.ones(np.size(u.vector))[m
+[32m+[m[32m"""d = np.ones(np.size(u.vector))[m
+ for i in range(2, 10):[m
+     print(" ")[m
+     print("eps=", "10^-", str(i))[m
+[36m@@ -113,7 +115,8 @@[m [mfor i in range(2, 10):[m
+     u_test2 = TimeFunction(vector=u1.vector - eps * d, dim=u.dim)[m
+     print("d @ grad: ", d @ grad)[m
+     print("Finite difference: ", (J(u_test1) - J(u_test2)) / 2 / eps)[m
+[31m-[m
+[32m+[m[32mfinite difference test[m
+[32m+[m[32m"""[m
+ P = TimeFunction(f=system.solve(u1))[m
+ P.to_vector()[m
+ print(u1(2.01))[m
+[36m@@ -132,8 +135,10 @@[m [mplt.figure(3)[m
+ plt.plot(X1, X2)[m
+ plt.figure(4)[m
+ plt.plot(time_array, u1.vector[::2])[m
+[32m+[m[32mplt.plot(time_array, u.vector[::2])[m
+ plt.figure(5)[m
+ plt.plot(time_array, u1.vector[1::2])[m
+[32m+[m[32mplt.plot(time_array, u.vector[1::2])[m
+ end = chrono.time()[m
+ print("time: ", end - start)[m
+ plt.show()[m
+[1mdiff --git a/Solver.py b/Solver.py[m
+[1mindex b3194ac..07219ce 100644[m
+[1m--- a/Solver.py[m
+[1m+++ b/Solver.py[m
+[36m@@ -3,8 +3,8 @@[m [mimport scipy.integrate as integrate[m
+ import time[m
+ [m
+ [m
+[31m-T = 10[m
+[31m-n = 100[m
+[32m+[m[32mT = 50[m
+[32m+[m[32mn = 500[m
+ dt = T / n[m
+ grad_time = 0[m
+ J_time = 0[m
+[36m@@ -19,6 +19,7 @@[m [me0 = 0.715[m
+ a0 = 24582000[m
+ moment0 = np.sqrt(a0 * (1 - e0 ** 2) * G * M)[m
+ energy0 = (e0 ** 2 - 1) * ((G * M) ** 2) / (2 * moment0 ** 2)[m
+[32m+[m[32mprint(moment0)[m
+ [m
+ [m
+ class DifferentiableFunction:[m
