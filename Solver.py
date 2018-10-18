@@ -2,25 +2,34 @@ import numpy as np
 import scipy.integrate as integrate
 import time
 
-
-T = 5
-n = 100
+kg_to_mass_unit__coeff = 1 / 16290
+meter_to_distance_unit_coeff = 1 / 637100
+time_coff = 1 / 60
+newton_to_force_unit_coeff = kg_to_mass_unit__coeff * meter_to_distance_unit_coeff / (time_coff ** 2)
+T = 500 * time_coff
+n = 500
 dt = T / n
 grad_time = 0
 J_time = 0
 to_vector_time = 0
 integration_time = 0
 solving_time = 0
-G = 6.673 * (10 ** (-11))
-M = 5.972 * (10 ** (24))
-isp = 300
-g0 = 9.81
-e0 = 0.715
-a0 = 24582000
-moment0 = np.sqrt(a0 * (1 - e0 ** 2) * G * M)
-energy0 = G * M / (2*a0)
-print(moment0)
-print(energy0)
+Grav = 6.673 * (10 ** (-11)) * meter_to_distance_unit_coeff ** 3 / kg_to_mass_unit__coeff / (time_coff ** 2)
+M = 5.972 * (10 ** 24) * kg_to_mass_unit__coeff
+p0 = 101325 * kg_to_mass_unit__coeff / meter_to_distance_unit_coeff / (time_coff ** 2)
+h0 = 8635 * meter_to_distance_unit_coeff
+A = (0.5 * 5.2) * np.pi * meter_to_distance_unit_coeff ** 2
+Cd = 0.07
+isp = 350 * time_coff
+g0 = 9.81 * meter_to_distance_unit_coeff / (time_coff ** 2)
+e0 = 0.25
+a0 = 7413000 * meter_to_distance_unit_coeff
+v_ideal = 7350 * meter_to_distance_unit_coeff / time_coff
+moment0 = np.sqrt(a0 * (1 - e0 ** 2) * Grav * M)
+energy0 = -Grav * M / (2 * a0)
+print("alpha: ", Grav * M)
+print("moment: ", moment0)
+print("energy: ", energy0)
 
 
 class DifferentiableFunction:
@@ -53,13 +62,12 @@ class TimeFunction:
         # print("integration time: ", integration_time)
         return v
 
-    def to_vector(self, step=n):
+    def to_vector(self, step=n, period=T):
         global to_vector_time
         start = time.time()
         dim = np.size(self.evaluate(0))
-        v = np.array([(self.integrate(i * T / step, (i + 1) * T / step) * step / T) for i in range(0, step)])
-        #v = np.array([((self(i * dt) + self((i + 1 / 4) * dt) + self((i + 2 / 4) * dt) + self((i + 3 / 4)) +self((i + 1) * dt)) / 5) for i in range(0, n)])
-        v = np.ravel(v)
+        v = np.array([(self.integrate(i * period / step, (i + 1) * period / step) * step / period) for i in range(0, step)])
+        v = v.ravel()
         self.vector = v
         self.dim = dim
         end = time.time()
@@ -90,6 +98,7 @@ class DynamicalSystem:
     def solve(self, u):
         global solving_time
         start = time.time()
+
         def func(t, x_at_t):
             dx = self.f.evaluate(t, u.evaluate(t), x_at_t)
             return dx
@@ -115,7 +124,6 @@ class Functional:
         def g_integrable(t):
             return self.g.evaluate(u(t), x(t))
 
-        #print("h: ", self.h.evaluate(x(T)))
         j = integrate.quad(g_integrable, 0, T, epsrel=1e-14, epsabs=1e-14)[0] + self.h.evaluate(x(T))
         print("h: ", self.h.evaluate(x(T)))
         return j
@@ -125,24 +133,25 @@ class Functional:
         global grad_time
         start = time.time()
 
-        def func(time, y):
+        def func(t, y):
             return np.atleast_1d(
-                np.atleast_1d(self.system.f.dx(T - time, u(T - time), x(T - time)).transpose()) @
-                         np.atleast_1d(y) + self.g.dx(u(T - time),
-                                                       x(T - time)))
+                np.atleast_1d(self.system.f.dx(T - t, u(T - t), x(T - t)).transpose()) @
+                np.atleast_1d(y) + self.g.dx(u(T - t),
+                                             x(T - t)))
 
-        p_sol = integrate.solve_ivp(func, (0, T), np.atleast_1d(self.h.dx(x(T))),  rtol=1e-13, atol=1e-8, dense_output=True).sol
+        p_sol = integrate.solve_ivp(func, (0, T), np.atleast_1d(self.h.dx(x(T))),
+                                    rtol=1e-13, atol=1e-8, dense_output=True).sol
 
-        def p_eval(time):
-            return p_sol(T - time)
+        def p_eval(t):
+            return p_sol(T - t)
 
         p = TimeFunction(f=p_eval)
 
-        def grad_eval(time):
+        def grad_eval(t):
             return np.atleast_1d(
-                np.atleast_1d(self.system.f.du(time, u(time), x(time)).transpose()) @
-                         np.atleast_1d(p(time))) + np.atleast_1d(
-                    self.g.du(u(time), x(time)))
+                np.atleast_1d(self.system.f.du(t, u(t), x(t)).transpose()) @
+                np.atleast_1d(p(t))) + np.atleast_1d(
+                self.g.du(u(t), x(t)))
 
         grad = TimeFunction(grad_eval)
         end = time.time()
@@ -165,16 +174,16 @@ class Functional:
         end = time.time()
         grad_time = grad_time + end - start
         # print("grad time: ", grad_time)
-        #print("grad: ", grad)
+        # print("grad: ", grad)
         return grad.vector
 
     def J_wrapper(self, vector):
         global J_time
         start = time.time()
         u = TimeFunction(vector=vector, dim=int(np.size(vector) / n))
-        J = self(u)
+        j = self(u)
         end = time.time()
         J_time = J_time + end - start
         # print("J time: ", J_time)
-        print("J :", J)
-        return J
+        print("J :", j)
+        return j
