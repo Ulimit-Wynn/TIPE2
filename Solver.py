@@ -2,12 +2,12 @@ import numpy as np
 import scipy.integrate as integrate
 import time
 
-kg_to_mass_unit__coeff = 1 / 16290
+kg_to_mass_unit__coeff = 1 / 505846
 meter_to_distance_unit_coeff = 1 / 637100
-time_coff = 1 / 60
+time_coff = 1 / 100
 newton_to_force_unit_coeff = kg_to_mass_unit__coeff * meter_to_distance_unit_coeff / (time_coff ** 2)
-T = 500 * time_coff
-n = 500
+T = 1000 * time_coff
+n = 600
 dt = T / n
 grad_time = 0
 J_time = 0
@@ -22,8 +22,8 @@ A = (0.5 * 5.2) * np.pi * meter_to_distance_unit_coeff ** 2
 Cd = 0.07
 isp = 350 * time_coff
 g0 = 9.81 * meter_to_distance_unit_coeff / (time_coff ** 2)
-e0 = 0.25
-a0 = 7413000 * meter_to_distance_unit_coeff
+e0 = 0.715
+a0 = 24582000 * meter_to_distance_unit_coeff
 v_ideal = 7350 * meter_to_distance_unit_coeff / time_coff
 moment0 = np.sqrt(a0 * (1 - e0 ** 2) * Grav * M)
 energy0 = -Grav * M / (2 * a0)
@@ -174,7 +174,7 @@ class Functional:
         end = time.time()
         grad_time = grad_time + end - start
         # print("grad time: ", grad_time)
-        # print("grad: ", grad)
+        # print("grad: ", grad.vector)
         return grad.vector
 
     def J_wrapper(self, vector):
