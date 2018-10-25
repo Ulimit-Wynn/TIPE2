@@ -32,38 +32,19 @@ energy = (1 / 2 * (vx ** 2 + vy ** 2) - alpha / r)
 moment = (vx * y - x * vy)
 
 F = sympy.Matrix([vx, vy, ax, ay, mdot])
-
-H = (moment - moment0) ** 2 / (moment0 ** 2) + (energy - energy0) ** 2 / (energy0 ** 2)
-H_moment = (moment - moment0) ** 2 / (moment0 ** 2)
-H_energy = (energy - energy0) ** 2 / (energy0 ** 2)
-H_zero = 0 * x
-G_zero = 0 * thrust
-G = 0 * (thrust / (isp * g0)) + 0.01 / (r - 9.5)
+H = (v - v_ideal) ** 2 / (v_ideal ** 2) + (r - a0) ** 2 / (a0 ** 2) + (vx * x + vy * y) ** 2
+G = 0 * (thrust / (isp * g0)) + 0.001 / (r - 9.3)
 dFdU = F.jacobian(U)
 dFdX = F.jacobian(X)
 dHdX = H.diff(X)
-dHdX_zero = H_zero.diff(X)
-dHdX_moment = H_moment.diff(X)
-dHdX_energy = H_energy.diff(X)
-dGdU_zero = G_zero.diff(U)
-dGdX_zero = G_zero.diff(X)
 dGdU = G.diff(U)
 dGdX = G.diff(X)
 f_tem = sympy.lambdify((t, U, X), F)
 dfdx = sympy.lambdify((t, U, X), dFdX)
 dfdu_tem = sympy.lambdify((t, U, X), dFdU)
 h_eval = sympy.lambdify((X,), H)
-h_zero_eval = sympy.lambdify((X,), H_moment)
-h_moment_eval = sympy.lambdify((X,), H_moment)
-h_energy_eval = sympy.lambdify((X,), H_energy)
 dhdx_tem = sympy.lambdify((X,), dHdX)
-dhdx_zero_tem = sympy.lambdify((X,), dHdX_zero)
-dhdx_moment_tem = sympy.lambdify((X,), dHdX_moment)
-dhdx_energy_tem = sympy.lambdify((X,), dHdX_energy)
-g_zero_eval = sympy.lambdify((U, X), G_zero)
 g_eval = sympy.lambdify((U, X), G)
-dgdx_zero_tem = sympy.lambdify((U, X), dGdX_zero)
-dgdu_zero_tem = sympy.lambdify((U, X), dGdU_zero)
 dgdx_tem = sympy.lambdify((U, X), dGdX)
 dgdu_tem = sympy.lambdify((U, X), dGdU)
 
@@ -78,14 +59,6 @@ def dfdu(time_value, u_at_t, x_at_t):
     return dfdu_tem(time_value, u_at_t, x_at_t)
 
 
-def dgdu_zero(u_at_t, x_at_t):
-    return dgdu_zero_tem(u_at_t, x_at_t).ravel()
-
-
-def dgdx_zero(u_at_t, x_at_t):
-    return dgdx_zero_tem(u_at_t, x_at_t).ravel()
-
-
 def dgdu(u_at_t, x_at_t):
     return dgdu_tem(u_at_t, x_at_t).ravel()
 
@@ -98,37 +71,19 @@ def dhdx(x_at_t):
     return dhdx_tem(x_at_t).ravel()
 
 
-def dhdx_moment(x_at_t):
-    return dhdx_moment_tem(x_at_t).ravel()
-
-
-def dhdx_energy(x_at_t):
-    return dhdx_energy_tem(x_at_t).ravel()
-
-
-def dhdx_zero(x_at_t):
-    return dhdx_zero_tem(x_at_t).ravel()
-
-
 def u_eval(time_value):
-    if time_value < 250 / 100:
-        return np.array([6585000 * newton_to_force_unit_coeff, 0])
-    elif time_value < 500 / 100:
-        return np.array([4000000 * newton_to_force_unit_coeff, np.pi / 2])
-    return np.array([0 * newton_to_force_unit_coeff, np.pi / 2])
-
-
+    if time_value < 200 * time_coff:
+        return np.array([9.806 * 11920 * newton_to_force_unit_coeff, 0])
+    else:
+        return np.array([9.806 * 11920 * newton_to_force_unit_coeff, np.pi/2])
 def thrust_constraint(vector):
     res = thrust_matrix @ vector
     return res
 
 
-def first_fuel_constraint(vector):
-    return 381412 * kg_to_mass_unit__coeff * kg_to_mass_unit__coeff - np.sum(vector[:int(T_first/dt):2]) * dt / (isp * g0)
+def fuel_constraint(vector):
+    return (16290 - 550) * kg_to_mass_unit__coeff - np.sum(vector[::2]) * dt / isp / g0
 
-beep
-def second_fuel_constraint(vector):
-    return 2
 
 
 def solve_for_orbit(x_at_t0):
@@ -143,26 +98,15 @@ def solve_for_orbit(x_at_t0):
 
 
 f = DifferentiableFunction(f=f_eval, dfdx=dfdx, dfdu=dfdu)
-g_zero = DifferentiableFunction(f=g_zero_eval, dfdx=dgdx_zero, dfdu=dgdu_zero)
 g = DifferentiableFunction(f=g_eval, dfdx=dgdx, dfdu=dgdu)
 h = DifferentiableFunction(f=h_eval, dfdx=dhdx)
-h_zero = DifferentiableFunction(f=h_zero_eval, dfdx=dhdx_zero)
-h_moment = DifferentiableFunction(f=h_moment_eval, dfdx=dhdx_moment)
-h_energy = DifferentiableFunction(f=h_energy_eval, dfdx=dhdx_energy)
 system = DynamicalSystem(f, x0)
 J = Functional(system, g, h)
-J_zero = Functional(system, g, h_zero)
-J_moment = Functional(system, g_zero, h_moment)
-J_energy = Functional(system, g_zero, h_energy)
 u = TimeFunction(u_eval)
 u.to_vector()
 
 start = chrono.time()
-# result = optimize.minimize(J.J_wrapper, u.vector, tol=1e-9, jac=J.grad_wrapper,
-#                           constraints=({"type": "ineq", "fun": thrust_constraint},
-#                                        {"type": "ineq", "fun": fuel_constraint},
-#                                        {"type": "eq", "fun": J_moment.J_wrapper, "jac": J_moment.grad_wrapper},
-#                                        {"type": "eq", "fun": J_energy.J_wrapper, "jac": J_energy.grad_wrapper}))
+
 result = optimize.minimize(J.J_wrapper, u.vector, tol=1e-9, jac=J.grad_wrapper,
                            constraints=({"type": "ineq", "fun": thrust_constraint},
                                         {"type": "ineq", "fun": fuel_constraint}))

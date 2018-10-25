@@ -6,8 +6,8 @@ kg_to_mass_unit__coeff = 1 / 16290
 meter_to_distance_unit_coeff = 1 / 637100
 time_coff = 1 / 60
 newton_to_force_unit_coeff = kg_to_mass_unit__coeff * meter_to_distance_unit_coeff / (time_coff ** 2)
-T = 500 * time_coff
-n = 500
+T = 300 * time_coff
+n = 300
 dt = T / n
 grad_time = 0
 J_time = 0
@@ -23,8 +23,9 @@ Cd = 0.07
 isp = 350 * time_coff
 g0 = 9.81 * meter_to_distance_unit_coeff / (time_coff ** 2)
 e0 = 0.25
-a0 = 7413000 * meter_to_distance_unit_coeff
+a0 = 10 + 400000 * meter_to_distance_unit_coeff
 v_ideal = 7350 * meter_to_distance_unit_coeff / time_coff
+r_ideal = 10 + 400000 * meter_to_distance_unit_coeff
 moment0 = np.sqrt(a0 * (1 - e0 ** 2) * Grav * M)
 energy0 = -Grav * M / (2 * a0)
 print("alpha: ", Grav * M)
@@ -120,6 +121,7 @@ class Functional:
     def __call__(self, u):
         u.to_func()
         x = self.system.solve(u)
+        print(x(3.5))
 
         def g_integrable(t):
             return self.g.evaluate(u(t), x(t))
