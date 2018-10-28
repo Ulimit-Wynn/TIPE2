@@ -6,8 +6,8 @@ kg_to_mass_unit__coeff = 1 / 16290
 meter_to_distance_unit_coeff = 1 / 637100
 time_coff = 1 / 60
 newton_to_force_unit_coeff = kg_to_mass_unit__coeff * meter_to_distance_unit_coeff / (time_coff ** 2)
-T = 300 * time_coff
-n = 300
+T = 400 * time_coff
+n = 100
 dt = T / n
 grad_time = 0
 J_time = 0
@@ -20,11 +20,11 @@ p0 = 101325 * kg_to_mass_unit__coeff / meter_to_distance_unit_coeff / (time_coff
 h0 = 8635 * meter_to_distance_unit_coeff
 A = (0.5 * 5.2) * np.pi * meter_to_distance_unit_coeff ** 2
 Cd = 0.07
-isp = 350 * time_coff
+isp = 400 * time_coff
 g0 = 9.81 * meter_to_distance_unit_coeff / (time_coff ** 2)
 e0 = 0.25
-a0 = 10 + 400000 * meter_to_distance_unit_coeff
-v_ideal = 7350 * meter_to_distance_unit_coeff / time_coff
+a0 = 10 + 900000 * meter_to_distance_unit_coeff
+v_ideal = 7400 * meter_to_distance_unit_coeff / time_coff
 r_ideal = 10 + 400000 * meter_to_distance_unit_coeff
 moment0 = np.sqrt(a0 * (1 - e0 ** 2) * Grav * M)
 energy0 = -Grav * M / (2 * a0)
@@ -108,7 +108,7 @@ class DynamicalSystem:
         solution = TimeFunction(f=solve.__call__)
         end = time.time()
         solving_time += end - start
-        print("Total system solving time: ", solving_time)
+        #print("Total system solving time: ", solving_time)
         return solution
 
 
@@ -121,7 +121,8 @@ class Functional:
     def __call__(self, u):
         u.to_func()
         x = self.system.solve(u)
-        print(x(3.5))
+        if self.g == 0:
+            return self.h.evaluate(x(T))
 
         def g_integrable(t):
             return self.g.evaluate(u(t), x(t))
@@ -134,13 +135,20 @@ class Functional:
         x = self.system.solve(u)
         global grad_time
         start = time.time()
-
-        def func(t, y):
-            return np.atleast_1d(
+        print("Calculating grad")
+        if self.g == 0:
+            def func(t, y):
+                return np.atleast_1d(
                 np.atleast_1d(self.system.f.dx(T - t, u(T - t), x(T - t)).transpose()) @
-                np.atleast_1d(y) + self.g.dx(u(T - t),
-                                             x(T - t)))
+                np.atleast_1d(y))
 
+        else:
+            def func(t, y):
+                return np.atleast_1d(
+                    np.atleast_1d(self.system.f.dx(T - t, u(T - t), x(T - t)).transpose()) @
+                    np.atleast_1d(y) + self.g.dx(u(T - t),
+                                                 x(T - t)))
+        print("Solving for p")
         p_sol = integrate.solve_ivp(func, (0, T), np.atleast_1d(self.h.dx(x(T))),
                                     rtol=1e-13, atol=1e-8, dense_output=True).sol
 
@@ -148,17 +156,25 @@ class Functional:
             return p_sol(T - t)
 
         p = TimeFunction(f=p_eval)
+        print("p solved")
+        if self.g == 0:
+            def grad_eval(t):
+                return np.atleast_1d(
+                    np.atleast_1d(self.system.f.du(t, u(t), x(t)).transpose()) @
+                    np.atleast_1d(p(t)))
 
-        def grad_eval(t):
-            return np.atleast_1d(
-                np.atleast_1d(self.system.f.du(t, u(t), x(t)).transpose()) @
-                np.atleast_1d(p(t))) + np.atleast_1d(
-                self.g.du(u(t), x(t)))
+        else:
+            def grad_eval(t):
+                return np.atleast_1d(
+                    np.atleast_1d(self.system.f.du(t, u(t), x(t)).transpose()) @
+                    np.atleast_1d(p(t))) + np.atleast_1d(
+                    self.g.du(u(t), x(t)))
 
         grad = TimeFunction(grad_eval)
         end = time.time()
         grad_time += end - start
         print("Grad time: ", grad_time)
+        print("Grad calculated")
         return grad
 
     def grad_vector(self, u):

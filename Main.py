@@ -24,8 +24,8 @@ for i in range(0, n):
 for i in range(0, n):
     fuel_matrix[2 * i] = dt / isp
 drag = 0.5 * p0 * sympy.exp(-(r - 1) / h0) * Cd * A * v
-ax = thrust * sympy.cos(theta) / m - alpha * x / (r ** 3) + 0 * vx * thrust / (isp * g0 * m) - drag * vx
-ay = thrust * sympy.sin(theta) / m - alpha * y / (r ** 3) + 0 * vy * thrust / (isp * g0 * m) - drag * vy
+ax = thrust * sympy.cos(theta) / m - alpha * x / (r ** 3) + vx * thrust / (isp * g0 * m) - drag * vx
+ay = thrust * sympy.sin(theta) / m - alpha * y / (r ** 3) + vy * thrust / (isp * g0 * m) - drag * vy
 mdot = -thrust / isp / g0
 
 energy = (1 / 2 * (vx ** 2 + vy ** 2) - alpha / r)
@@ -33,7 +33,7 @@ moment = (vx * y - x * vy)
 
 F = sympy.Matrix([vx, vy, ax, ay, mdot])
 H = (v - v_ideal) ** 2 / (v_ideal ** 2) + (r - a0) ** 2 / (a0 ** 2) + (vx * x + vy * y) ** 2
-G = 0 * (thrust / (isp * g0)) + 0.001 / (r - 9.3)
+G = 0 * (thrust / (isp * g0)) + 0.001 / (r - 9.2)
 dFdU = F.jacobian(U)
 dFdX = F.jacobian(X)
 dHdX = H.diff(X)
@@ -72,10 +72,12 @@ def dhdx(x_at_t):
 
 
 def u_eval(time_value):
-    if time_value < 200 * time_coff:
-        return np.array([9.806 * 11920 * newton_to_force_unit_coeff, 0])
+    if time_value < 70 * time_coff:
+        return np.array([9.806 * 21920 * newton_to_force_unit_coeff, 0])
     else:
-        return np.array([9.806 * 11920 * newton_to_force_unit_coeff, np.pi/2])
+        return np.array([9.806 * 11920 * newton_to_force_unit_coeff, (time_value - 70 * time_coff) * np.pi/T])
+
+
 def thrust_constraint(vector):
     res = thrust_matrix @ vector
     return res
@@ -107,7 +109,7 @@ u.to_vector()
 
 start = chrono.time()
 
-result = optimize.minimize(J.J_wrapper, u.vector, tol=1e-9, jac=J.grad_wrapper,
+result = optimize.minimize(J.J_wrapper, u.vector, tol=1e-4, jac=J.grad_wrapper,
                            constraints=({"type": "ineq", "fun": thrust_constraint},
                                         {"type": "ineq", "fun": fuel_constraint}))
 print(result)
@@ -125,12 +127,18 @@ for i in range(2, 10):
     print("Finite difference: ", (J(u_test1) - J(u_test2)) / 2 / eps)
 time_array_u = np.linspace(0, T, n)
 time_array_x = np.linspace(0, T, 20000)
+P_original = system.solve(u)
 P = TimeFunction(f=system.solve(u1))
+P_original.to_vector(step=20000)
 P.to_vector(step=20000)
+orbit_original = solve_for_orbit(P_original(T))
 orbit = solve_for_orbit(P(T))
+orbit_original.to_vector(step=20000, period=600)
 orbit.to_vector(step=20000, period=600)
 orbit_x = orbit.vector[::5]
 orbit_y = orbit.vector[1::5]
+orbit_original_x = orbit_original.vector[::5]
+orbit_original_y = orbit_original.vector[1::5]
 earth_x = 10 * np.array([np.cos(i * 2 * np.pi / 20000) for i in range(0, 20000)])
 earth_y = 10 * np.array([np.sin(i * 2 * np.pi / 20000) for i in range(0, 20000)])
 ideal_orbit_x = a0 * np.array([np.cos(i * 2 * np.pi / 20000) for i in range(0, 20000)])
@@ -162,6 +170,7 @@ plt.plot(time_array_u, u.vector[1::2])
 plt.figure(4)
 plt.plot(earth_x, earth_y)
 plt.plot(orbit_x, orbit_y)
+plt.plot(orbit_original_x, orbit_original_y)
 plt.plot(ideal_orbit_x, ideal_orbit_y)
 end = chrono.time()
 print("time: ", end - start)
