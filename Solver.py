@@ -28,9 +28,6 @@ v_ideal = 7400 * meter_to_distance_unit_coeff / time_coff
 r_ideal = 10 + 400000 * meter_to_distance_unit_coeff
 moment0 = np.sqrt(a0 * (1 - e0 ** 2) * Grav * M)
 energy0 = -Grav * M / (2 * a0)
-print("alpha: ", Grav * M)
-print("moment: ", moment0)
-print("energy: ", energy0)
 
 
 class DifferentiableFunction:
@@ -66,14 +63,18 @@ class TimeFunction:
     def to_vector(self, step=n, period=T):
         global to_vector_time
         start = time.time()
+        dt = period / step
         dim = np.size(self.evaluate(0))
-        v = np.array([(self.integrate(i * period / step, (i + 1) * period / step) * step / period) for i in range(0, step)])
+        # v = np.array([(self.integrate(i * period / step, (i + 1) * period / step) * step / period) for i in range(0, step)])
+        v = np.array([1/2 * self(dt * (i + 1/(2 * np.sqrt(3)))) + 1/2 *
+                      self(dt * (i + 1 - 1/(2 * np.sqrt(3)))) for i in range(0, step)])
         v = v.ravel()
         self.vector = v
         self.dim = dim
         end = time.time()
         to_vector_time += end - start
         print("vector time: ", to_vector_time)
+        print("new")
 
     def to_func(self):
         v = np.reshape(self.vector, (-1, self.dim))
@@ -108,7 +109,7 @@ class DynamicalSystem:
         solution = TimeFunction(f=solve.__call__)
         end = time.time()
         solving_time += end - start
-        #print("Total system solving time: ", solving_time)
+        print("Total system solving time: ", solving_time)
         return solution
 
 

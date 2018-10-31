@@ -54,8 +54,6 @@ def f_eval(time_value, u_at_t, x_at_t):
 
 
 def dfdu(time_value, u_at_t, x_at_t):
-    if u_at_t[0] == 0:
-        return np.array([[0, 0], [0, 0], [1 / x_at_t[4], 0], [0, 1 / x_at_t[4]], [0, 0]])
     return dfdu_tem(time_value, u_at_t, x_at_t)
 
 
@@ -79,16 +77,18 @@ def u_eval(time_value):
 
 
 def thrust_constraint_min(vector):
+    # TODO: vector [::2]
     res = thrust_matrix @ vector
     return res
+
 
 def thrust_constraint_max(vector):
     res = 33500 * 9.806 * newton_to_force_unit_coeff * np.ones(np.size(vector)//2) - thrust_matrix @ vector
     return res
 
+
 def fuel_constraint(vector):
     return (16290 - 550) * kg_to_mass_unit__coeff - np.sum(vector[::2]) * dt / isp / g0
-
 
 
 def solve_for_orbit(x_at_t0):
@@ -97,7 +97,7 @@ def solve_for_orbit(x_at_t0):
                        - alpha * y[1] / (np.sqrt(y[0] ** 2 + y[1] ** 2) ** 3), 0])
         return dy
 
-    solve = integrate.solve_ivp(func, (0, 600), x_at_t0, dense_output=True, rtol=1e-13, atol=1-8).sol
+    solve = integrate.solve_ivp(func, (0, 600), x_at_t0, dense_output=True, rtol=1e-13, atol=1e-8).sol
     solution = TimeFunction(f=solve.__call__)
     return solution
 
@@ -112,7 +112,7 @@ u.to_vector()
 
 start = chrono.time()
 
-result = optimize.minimize(J.J_wrapper, u.vector, method="SLSQP", options={"ftol": 1e-12}, jac=J.grad_wrapper,
+result = optimize.minimize(J.J_wrapper, u.vector, method="SLSQP", options={"ftol": 1e-4}, jac=J.grad_wrapper,
                            constraints=({"type": "ineq", "fun": thrust_constraint_min},
                                         {"type": "ineq", "fun": thrust_constraint_max},
                                         {"type": "ineq", "fun": fuel_constraint}))
@@ -120,7 +120,6 @@ print(result)
 u1 = TimeFunction(vector=result.x, dim=2)
 u1.to_func()
 grad = result.jac
-d = np.ones(np.size(u.vector))
 
 time_array_u = np.linspace(0, T, n)
 time_array_x = np.linspace(0, T, 5000)
