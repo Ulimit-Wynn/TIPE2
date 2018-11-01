@@ -112,7 +112,7 @@ u.to_vector()
 
 start = chrono.time()
 
-result = optimize.minimize(J.J_wrapper, u.vector, method="SLSQP", options={"ftol": 1e-4}, jac=J.grad_wrapper,
+result = optimize.minimize(J.J_wrapper, u.vector, method="SLSQP", options={"ftol": 1e-10}, jac=J.grad_wrapper,
                            constraints=({"type": "ineq", "fun": thrust_constraint_min},
                                         {"type": "ineq", "fun": thrust_constraint_max},
                                         {"type": "ineq", "fun": fuel_constraint}))
