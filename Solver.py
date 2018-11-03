@@ -18,8 +18,8 @@ Grav = 6.673 * (10 ** (-11)) * meter_to_distance_unit_coeff ** 3 / kg_to_mass_un
 M = 5.972 * (10 ** 24) * kg_to_mass_unit__coeff
 p0 = 101325 * kg_to_mass_unit__coeff / meter_to_distance_unit_coeff / (time_coff ** 2)
 h0 = 8635 * meter_to_distance_unit_coeff
-A = (0.5 * 5.2) * np.pi * meter_to_distance_unit_coeff ** 2
-Cd = 0.07
+A = (0.25 * 0.75 ** 2) * np.pi * meter_to_distance_unit_coeff ** 2
+Cd = 0.2
 isp = 300 * time_coff
 g0 = 9.81 * meter_to_distance_unit_coeff / (time_coff ** 2)
 e0 = 0.25
@@ -73,8 +73,6 @@ class TimeFunction:
         self.dim = dim
         end = time.time()
         to_vector_time += end - start
-        print("vector time: ", to_vector_time)
-        print("new")
 
     def to_func(self):
         v = np.reshape(self.vector, (-1, self.dim))
@@ -100,16 +98,16 @@ class DynamicalSystem:
     def solve(self, u):
         global solving_time
         start = time.time()
-
+        print("solving system")
         def func(t, x_at_t):
+            print(t)
             dx = self.f.evaluate(t, u.evaluate(t), x_at_t)
             return dx
 
-        solve = integrate.solve_ivp(func, (0, T), self.x0, dense_output=True, rtol=10 ** (-13), atol=10 ** (-8)).sol
+        solve = integrate.solve_ivp(func, (0, T), self.x0, dense_output=True, rtol=10 ** (-8), atol=10 ** (-8)).sol
         solution = TimeFunction(f=solve.__call__)
         end = time.time()
         solving_time += end - start
-        print("Total system solving time: ", solving_time)
         return solution
 
 

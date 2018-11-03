@@ -6,19 +6,21 @@ import sympy
 import time as chrono
 
 alpha = Grav * M
-x0 = np.array([10, 0, 0, 0, 1])
+x0 = np.array([10, 0, 0, 0, 0, 0, 1])
 t = sympy.symbols('t')
-x, y, vx, vy, m = sympy.symbols('x y vx vy m')
-thrust, theta = sympy.symbols('thrust theta')
-X = sympy.Matrix([x, y, vx, vy, m])
-U = sympy.Matrix([thrust, theta])
+x, y, vx, vy, theta, theta1, m = sympy.symbols('x y vx vy theta theta1 m')
+T1, T2 = sympy.symbols('T1 T2')
+X = sympy.Matrix([x, y, vx, vy, theta, theta1, m])
+U = sympy.Matrix([T1, T2])
 r = sympy.sqrt(x ** 2 + y ** 2)
 v = sympy.sqrt((vx ** 2 + vy ** 2))
 r1 = (x * vx + y * vy) / r
+thrust = T1 + T2
 phi = sympy.atan2(y, x)
 phi1 = (vx * y - x * vy) / (x ** 2 + y ** 2)
 thrust_matrix = np.zeros((n, 2 * n))
 fuel_matrix = np.zeros(2 * n)
+inertia = (1 / 16 * m * 1.5 ** 2 + 1 / 3 * m * 16 ** 2) * kg_to_mass_unit__coeff * meter_to_distance_unit_coeff ** 2
 for i in range(0, n):
     thrust_matrix[i][2 * i] = 1
 for i in range(0, n):
@@ -27,11 +29,12 @@ drag = 0.5 * p0 * sympy.exp(-(r - 1) / h0) * Cd * A * v
 ax = thrust * sympy.cos(theta) / m - alpha * x / (r ** 3) + vx * thrust / (isp * g0 * m) - drag * vx
 ay = thrust * sympy.sin(theta) / m - alpha * y / (r ** 3) + vy * thrust / (isp * g0 * m) - drag * vy
 mdot = -thrust / isp / g0
+theta2 = (1.5 * meter_to_distance_unit_coeff / inertia) * (T2 - T1)
 
 energy = (1 / 2 * (vx ** 2 + vy ** 2) - alpha / r)
 moment = (vx * y - x * vy)
 
-F = sympy.Matrix([vx, vy, ax, ay, mdot])
+F = sympy.Matrix([vx, vy, ax, ay, theta1, theta2, mdot])
 H = (v - v_ideal) ** 2 / (v_ideal ** 2) + (r - a0) ** 2 / (a0 ** 2) + (vx * x + vy * y) ** 2
 G = 0 * (thrust / (isp * g0))
 dFdU = F.jacobian(U)
@@ -71,10 +74,12 @@ def dhdx(x_at_t):
 
 def u_eval(time_value):
     if time_value < 70 * time_coff:
-        return np.array([9.806 * 21920 * newton_to_force_unit_coeff, 0])
+        return np.array([9.806 * 10000 * newton_to_force_unit_coeff, 9.806 * 10000 * newton_to_force_unit_coeff])
+    elif time_value < 100 * time_coff:
+        return np.array([9.806 * 9000 * newton_to_force_unit_coeff,
+                         9.806 * 10000 * newton_to_force_unit_coeff])
     else:
-        return np.array([9.806 * (21920 - time_value * 21920 / T) * newton_to_force_unit_coeff, (time_value - 70 * time_coff) * np.pi/T])
-
+        return np.array([9.806 * 10000 * newton_to_force_unit_coeff, 9.806 * 10000 * newton_to_force_unit_coeff])
 
 def thrust_constraint_min(vector):
     # TODO: vector [::2]
@@ -83,12 +88,12 @@ def thrust_constraint_min(vector):
 
 
 def thrust_constraint_max(vector):
-    res = 33500 * 9.806 * newton_to_force_unit_coeff * np.ones(np.size(vector)//2) - thrust_matrix @ vector
+    res = 33500 * 9.806 * newton_to_force_unit_coeff * np.ones(np.size(vector) // 2) - thrust_matrix @ vector
     return res
 
 
 def fuel_constraint(vector):
-    return (16290 - 550) * kg_to_mass_unit__coeff - np.sum(vector[::2]) * dt / isp / g0
+    return (16290 - 550) * kg_to_mass_unit__coeff - np.sum(vector) * dt / isp / g0
 
 
 def solve_for_orbit(x_at_t0):
