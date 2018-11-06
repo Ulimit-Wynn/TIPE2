@@ -18,7 +18,13 @@ r1 = (x * vx + y * vy) / r
 thrust = T1 + T2
 phi = sympy.atan2(y, x)
 phi1 = (vx * y - x * vy) / (x ** 2 + y ** 2)
-inertia = 1/12 * m * (3 * 0.25 * 1.5 ** 2 + 16 ** 2) * meter_to_distance_unit_coeff ** 2
+thrust_matrix = np.zeros((n, 2 * n))
+fuel_matrix = np.zeros(2 * n)
+inertia = (1/8 * m * 1.5 ** 2) * meter_to_distance_unit_coeff ** 2
+for i in range(0, n):
+    thrust_matrix[i][2 * i] = 1
+for i in range(0, n):
+    fuel_matrix[2 * i] = dt / isp
 drag = 0.5 * p0 * sympy.exp(-(r - 1) / h0) * Cd * A * v
 ax = thrust * sympy.cos(theta) / m - alpha * x / (r ** 3) + vx * thrust / (isp * g0 * m) - drag * vx
 ay = thrust * sympy.sin(theta) / m - alpha * y / (r ** 3) + vy * thrust / (isp * g0 * m) - drag * vy
@@ -28,9 +34,11 @@ e_theta = np.array([1, y/x])
 e_theta = 1/sympy.sqrt(1 + (y/x) ** 2) * e_theta
 v_vector = np.array([vx, vy])
 
+energy = (1 / 2 * (vx ** 2 + vy ** 2) - alpha / r)
+moment = (vx * y - x * vy)
 
 F = sympy.Matrix([vx, vy, ax, ay, theta1, theta2, mdot])
-H = (np.dot(v_vector, e_theta) - v_ideal) ** 2 / (v_ideal ** 2) + (r - a0) ** 2 / (a0 ** 2) + (vx * x + vy * y) ** 2 + theta1 ** 2
+H = (np.dot(v_vector, e_theta) - v_ideal) ** 2 / (v_ideal ** 2) + (r - a0) ** 2 / (a0 ** 2) + (vx * x + vy * y) ** 2
 G = 0 * (thrust / (isp * g0))
 dFdU = F.jacobian(U)
 dFdX = F.jacobian(X)
@@ -105,64 +113,17 @@ system = DynamicalSystem(f, x0)
 J = Functional(system, g, h)
 u = TimeFunction(u_eval)
 u.to_vector()
+grad = J.grad_vector(u)
 
-start = chrono.time()
-
-result = optimize.minimize(J.J_wrapper, u.vector, method="SLSQP", options={"ftol": 1e-12}, jac=J.grad_wrapper,
-                           constraints=({"type": "ineq", "fun": thrust_constraint_min},
-                                        {"type": "ineq", "fun": thrust_constraint_max},
-                                        {"type": "ineq", "fun": fuel_constraint}))
-print(result)
-u1 = TimeFunction(vector=result.x, dim=2)
-u1.to_func()
-grad = result.jac
-
-time_array_u = np.linspace(0, T, n)
-time_array_x = np.linspace(0, T, 5000)
-P_original = system.solve(u)
-P = TimeFunction(f=system.solve(u1))
-P_original.to_vector(step=5000)
-P.to_vector(step=5000)
-orbit_original = solve_for_orbit(P_original(T))
-orbit = solve_for_orbit(P(T))
-orbit_original.to_vector(step=5000, period=600)
-orbit.to_vector(step=5000, period=600)
-orbit_x = orbit.vector[::5]
-orbit_y = orbit.vector[1::5]
-orbit_original_x = orbit_original.vector[::5]
-orbit_original_y = orbit_original.vector[1::5]
-earth_x = 10 * np.array([np.cos(i * 2 * np.pi / 5000) for i in range(0, 5000)])
-earth_y = 10 * np.array([np.sin(i * 2 * np.pi / 5000) for i in range(0, 5000)])
-ideal_orbit_x = a0 * np.array([np.cos(i * 2 * np.pi / 5000) for i in range(0, 5000)])
-ideal_orbit_y = a0 * np.array([np.sin(i * 2 * np.pi / 5000) for i in range(0, 5000)])
-print(P(T))
-X1 = P.vector[::7]
-X2 = P.vector[1::7]
-Mass = P.vector[4::7]
-gr1 = grad[::2]
-gr2 = grad[1::2]
-plt.figure(1)
-plt.subplot(211)
-plt.plot(time_array_x, X1)
-plt.subplot(212)
-plt.plot(time_array_x, X2)
-plt.figure(2)
-plt.ylim((15, -15))
-plt.xlim((15, -15))
-plt.autoscale(False)
-plt.plot(earth_x, earth_y)
-plt.plot(X1, X2)
-plt.figure(3)
-plt.subplot(211)
-plt.plot(time_array_u, u1.vector[::2])
-plt.plot(time_array_u, u.vector[::2])
-plt.subplot(212)
-plt.plot(time_array_u, u1.vector[1::2])
-plt.plot(time_array_u, u.vector[1::2])
-plt.figure(4)
-plt.plot(earth_x, earth_y)
-plt.plot(orbit_x, orbit_y)
-plt.plot(ideal_orbit_x, ideal_orbit_y)
-end = chrono.time()
-print("time: ", end - start)
-plt.show()
+d = np.ones(np.size(grad.vector))
+for i in range(3, 10):
+    print("i = ", i)
+    print("")
+    eps = 10 ** (-i)
+    u_test1 = TimeFunction(vector=u.vector + eps * d, dim=u.dim)
+    u_test2 = TimeFunction(vector=u.vector - eps * d, dim=u.dim)
+    print("J +: ", J(u_test1))
+    print("J -: ", J(u_test2))
+    print("d @ grad: ", d @ grad.vector)
+    print("Finite difference: ", (J(u_test1) - J(u_test2)) / (2 * eps))
+    print("")
