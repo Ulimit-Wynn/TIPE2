@@ -25,9 +25,9 @@ g0 = 9.81 * meter_to_distance_unit_coeff / (time_coff ** 2)
 e0 = 0.25
 a0 = 10 + 900000 * meter_to_distance_unit_coeff
 v_ideal = 7400 * meter_to_distance_unit_coeff / time_coff
-r_ideal = 10 + 400000 * meter_to_distance_unit_coeff
-moment0 = np.sqrt(a0 * (1 - e0 ** 2) * Grav * M)
-energy0 = -Grav * M / (2 * a0)
+rocket_radius = 0.75 * meter_to_distance_unit_coeff
+rocket_height = 16 * meter_to_distance_unit_coeff
+rocket_inertia = 1/12 * (3 * rocket_radius ** 2 + rocket_height ** 2 + 1/2 * rocket_height ** 2)
 
 
 class DifferentiableFunction:
@@ -95,6 +95,44 @@ class DynamicalSystem:
         self.f = f
         self.x0 = x0
 
+    def solve_mass(self, u):
+        def func(t, m_at_t):
+            dm = np.array([-(u.evaluate(t)[0] + u.evaluate(t)[1]) / isp / g0])
+            return dm
+
+        solve = integrate.solve_ivp(func, (0, T), np.array([1]), dense_output=True, atol=1e-12, rtol=1e-12).sol
+        return solve
+
+    def solve_theta1(self, u, m):
+        def func(t, theta1):
+            theta2 = np.array([rocket_radius / (rocket_inertia * m(t)) * (u(t)[1] - u(t)[0])])
+            return theta2
+
+        solve = integrate.solve_ivp(func, (0, T), np.array([0]), dense_output=True, atol=1e-12, rtol=1e-12).sol
+        return solve
+
+    def solve_decoupled(self, u):
+        start = time.time()
+        m = self.solve_mass(u)
+        theta1 = self.solve_theta1(u, m)
+
+        def new_f(t, u_at_t, r_v_at_t, theta1_at_t, m_at_t):
+            temp = np.array([theta1_at_t[0], m_at_t[0]])
+            return self.f.evaluate(t, u_at_t, np.concatenate((r_v_at_t, temp)))[:-2]
+
+        def func(t, r_v_at_t):
+            drv = new_f(t, u(t), r_v_at_t, theta1(t), m(t))
+            return drv
+        solve = solve = integrate.solve_ivp(func, (0, T), self.x0[:-2], dense_output=True, atol=1e-12, rtol=1e-12).sol
+
+        def solution_eval(t):
+            temp = np.array([theta1(t)[0], m(t)[0]])
+            return np.concatenate((solve(t), temp))
+
+        solution = TimeFunction(f=solution_eval)
+        print("decoupled time: ", time.time() - start)
+        return solution
+
     def solve(self, u):
         global solving_time
         start = time.time()
@@ -107,6 +145,7 @@ class DynamicalSystem:
         solution = TimeFunction(f=solve.__call__)
         end = time.time()
         solving_time += end - start
+        print("System time: ", solving_time)
         return solution
 
 
@@ -148,7 +187,7 @@ class Functional:
                     np.atleast_1d(self.system.f.dx(T - t, u(T - t), x(T - t)).transpose()) @
                     np.atleast_1d(y) + self.g.dx(u(T - t),
                                                  x(T - t)))
-        p_sol = integrate.solve_ivp(func, (0, T), np.atleast_1d(self.h.dx(x(T))), dense_output=True, atol=1e-5, rtol=1e-5).sol
+        p_sol = integrate.solve_ivp(func, (0, T), np.atleast_1d(self.h.dx(x(T))), dense_output=True, atol=1e-12, rtol=1e-12).sol
 
         def p_eval(t):
             return p_sol(T - t)
@@ -187,7 +226,7 @@ class Functional:
         grad = self.grad_vector(u)
         end = time.time()
         grad_time = grad_time + end - start
-        # print("grad time: ", grad_time)
+        print("grad time: ", grad_time)
         # print("grad: ", grad)
         return grad.vector
 

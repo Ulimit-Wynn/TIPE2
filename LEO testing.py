@@ -20,16 +20,12 @@ phi = sympy.atan2(y, x)
 phi1 = (vx * y - x * vy) / (x ** 2 + y ** 2)
 thrust_matrix = np.zeros((n, 2 * n))
 fuel_matrix = np.zeros(2 * n)
-inertia = (1/8 * m * 1.5 ** 2) * meter_to_distance_unit_coeff ** 2
-for i in range(0, n):
-    thrust_matrix[i][2 * i] = 1
-for i in range(0, n):
-    fuel_matrix[2 * i] = dt / isp
+inertia = rocket_inertia * m
 drag = 0.5 * p0 * sympy.exp(-(r - 1) / h0) * Cd * A * v
 ax = thrust * sympy.cos(theta) / m - alpha * x / (r ** 3) + vx * thrust / (isp * g0 * m) - drag * vx
 ay = thrust * sympy.sin(theta) / m - alpha * y / (r ** 3) + vy * thrust / (isp * g0 * m) - drag * vy
 mdot = -thrust / isp / g0
-theta2 = (1.5 * meter_to_distance_unit_coeff / inertia) * (T2 - T1)
+theta2 = (0.75 * meter_to_distance_unit_coeff / inertia) * (T2 - T1)
 e_theta = np.array([1, y/x])
 e_theta = 1/sympy.sqrt(1 + (y/x) ** 2) * e_theta
 v_vector = np.array([vx, vy])
@@ -79,7 +75,7 @@ def u_eval(time_value):
     if time_value < 70 * time_coff:
         return np.array([9.806 * 7000 * newton_to_force_unit_coeff, 9.806 * 7000 * newton_to_force_unit_coeff])
     else:
-        return np.array([9.806 * (7000 - 1000 * (time_value - 70 * time_coff)) * newton_to_force_unit_coeff, 9.806 * (7000 - 1000 * (time_value - 70 * time_coff)) * newton_to_force_unit_coeff])
+        return np.array([9.806 * (7000 - 1000 * (time_value - 70 * time_coff)) * newton_to_force_unit_coeff, 9.806 * (7000 - 1100 * (time_value - 70 * time_coff)) * newton_to_force_unit_coeff])
 
 
 def thrust_constraint_min(vector):
@@ -113,9 +109,9 @@ system = DynamicalSystem(f, x0)
 J = Functional(system, g, h)
 u = TimeFunction(u_eval)
 u.to_vector()
-grad = J.grad_vector(u)
-
-d = np.ones(np.size(grad.vector))
+print(system.solve_decoupled(u)(T))
+print(system.solve(u)(T))
+"""d = np.ones(np.size(grad.vector))
 for i in range(3, 10):
     print("i = ", i)
     print("")
@@ -127,3 +123,4 @@ for i in range(3, 10):
     print("d @ grad: ", d @ grad.vector)
     print("Finite difference: ", (J(u_test1) - J(u_test2)) / (2 * eps))
     print("")
+"""
