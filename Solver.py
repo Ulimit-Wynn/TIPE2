@@ -23,7 +23,7 @@ Cd = 0.2
 isp = 400 * time_coff
 g0 = 9.81 * meter_to_distance_unit_coeff / (time_coff ** 2)
 e0 = 0.25
-a0 = 10 + 900000 * meter_to_distance_unit_coeff
+a0 = 10 + 400000 * meter_to_distance_unit_coeff
 v_ideal = 7400 * meter_to_distance_unit_coeff / time_coff
 rocket_radius = 0.75 * meter_to_distance_unit_coeff
 rocket_height = 16 * meter_to_distance_unit_coeff
@@ -73,6 +73,7 @@ class TimeFunction:
         self.dim = dim
         end = time.time()
         to_vector_time += end - start
+        print(to_vector_time)
 
     def to_func(self):
         v = np.reshape(self.vector, (-1, self.dim))
@@ -100,7 +101,7 @@ class DynamicalSystem:
             dm = np.array([-(u.evaluate(t)[0] + u.evaluate(t)[1]) / isp / g0])
             return dm
 
-        solve = integrate.solve_ivp(func, (0, T), np.array([1]), dense_output=True, atol=1e-12, rtol=1e-12).sol
+        solve = integrate.solve_ivp(func, (0, T), np.array([1]), dense_output=True, atol=1e-7, rtol=1e-7).sol
         return solve
 
     def solve_theta1(self, u, m):
@@ -170,11 +171,9 @@ class Functional:
 
     def grad(self, u):
         x = self.system.solve(u)
+        print(u(T))
         global grad_time
         start = time.time()
-        print(x(0))
-        print(x(0.9 * T))
-        print(x(T))
         if self.g == 0:
             def func(t, y):
                 return np.atleast_1d(
@@ -220,14 +219,10 @@ class Functional:
         return grad
 
     def grad_wrapper(self, vector):
-        global grad_time
         start = time.time()
         u = TimeFunction(vector=vector, dim=int(np.size(vector) / n))
         grad = self.grad_vector(u)
         end = time.time()
-        grad_time = grad_time + end - start
-        print("grad time: ", grad_time)
-        # print("grad: ", grad)
         return grad.vector
 
     def J_wrapper(self, vector):

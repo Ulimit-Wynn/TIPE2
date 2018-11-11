@@ -22,8 +22,8 @@ thrust_matrix = np.zeros((n, 2 * n))
 fuel_matrix = np.zeros(2 * n)
 inertia = rocket_inertia * m
 drag = 0.5 * p0 * sympy.exp(-(r - 1) / h0) * Cd * A * v
-ax = thrust * sympy.cos(theta) / m - alpha * x / (r ** 3) + vx * thrust / (isp * g0 * m) - drag * vx
-ay = thrust * sympy.sin(theta) / m - alpha * y / (r ** 3) + vy * thrust / (isp * g0 * m) - drag * vy
+ax = thrust * sympy.cos(theta) / m - alpha * x / (r ** 3) + vx * thrust / (isp * g0 * m) - 0 * drag * vx
+ay = thrust * sympy.sin(theta) / m - alpha * y / (r ** 3) + vy * thrust / (isp * g0 * m) - 0 * drag * vy
 mdot = -thrust / isp / g0
 theta2 = (0.75 * meter_to_distance_unit_coeff / inertia) * (T2 - T1)
 e_theta = np.array([1, y/x])
@@ -73,9 +73,9 @@ def dhdx(x_at_t):
 
 def u_eval(time_value):
     if time_value < 70 * time_coff:
-        return np.array([9.806 * 7000 * newton_to_force_unit_coeff, 9.806 * 7000 * newton_to_force_unit_coeff])
+        return np.array([9.806 * 6000 * newton_to_force_unit_coeff, 9.806 * 6000 * newton_to_force_unit_coeff])
     else:
-        return np.array([9.806 * (7000 - 1000 * (time_value - 70 * time_coff)) * newton_to_force_unit_coeff, 9.806 * (7000 - 1100 * (time_value - 70 * time_coff)) * newton_to_force_unit_coeff])
+        return np.array([9.806 * (7000 - 1000 * (time_value - 70 * time_coff)) * newton_to_force_unit_coeff, 9.806 * (7000 - 1000.1 * (time_value - 70 * time_coff)) * newton_to_force_unit_coeff])
 
 
 def thrust_constraint_min(vector):
@@ -110,7 +110,7 @@ J = Functional(system, g, h)
 u = TimeFunction(u_eval)
 u.to_vector()
 print(system.solve_decoupled(u)(T))
-print(system.solve(u)(T))
+solution = system.solve(u)
 """d = np.ones(np.size(grad.vector))
 for i in range(3, 10):
     print("i = ", i)
@@ -124,3 +124,6 @@ for i in range(3, 10):
     print("Finite difference: ", (J(u_test1) - J(u_test2)) / (2 * eps))
     print("")
 """
+print("negative X: ", solution(-1))
+print(f.dx(-0.0000000001, np.array([0.02381024, 0.02381024]), np.array([10, 0, 0, 0, 0, 0, 1])))
+print("dFdX: ", dFdX[2, 2])
