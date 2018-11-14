@@ -21,20 +21,19 @@ phi1 = (vx * y - x * vy) / (x ** 2 + y ** 2)
 thrust_matrix = np.zeros((n, 2 * n))
 fuel_matrix = np.zeros(2 * n)
 inertia = rocket_inertia * m
-drag = 0.5 * p0 * sympy.exp(-(r - 1) / h0) * Cd * A * v
-ax = thrust * sympy.cos(theta) / m - alpha * x / (r ** 3) + vx * thrust / (isp * g0 * m) - 0 * drag * vx
-ay = thrust * sympy.sin(theta) / m - alpha * y / (r ** 3) + vy * thrust / (isp * g0 * m) - 0 * drag * vy
+drag = 0.5 * p0 * sympy.exp(-(r - 1) / h0) * Cd * A * v ** 2
+ax = thrust * sympy.cos(theta) / m - alpha * x / (r ** 3) + vx * thrust / (isp * g0 * m) - drag * vx
+ay = thrust * sympy.sin(theta) / m - alpha * y / (r ** 3) + vy * thrust / (isp * g0 * m) - drag * vy
 mdot = -thrust / isp / g0
 theta2 = (0.75 * meter_to_distance_unit_coeff / inertia) * (T2 - T1)
 e_theta = np.array([1, y/x])
 e_theta = 1/sympy.sqrt(1 + (y/x) ** 2) * e_theta
 v_vector = np.array([vx, vy])
+r_cross_v = vx * y - vy * x
 
-energy = (1 / 2 * (vx ** 2 + vy ** 2) - alpha / r)
-moment = (vx * y - x * vy)
 
 F = sympy.Matrix([vx, vy, ax, ay, theta1, theta2, mdot])
-H = (np.dot(v_vector, e_theta) - v_ideal) ** 2 / (v_ideal ** 2) + (r - a0) ** 2 / (a0 ** 2) + (vx * x + vy * y) ** 2
+H = (r_cross_v - v_ideal * a0) ** 2 / ((v_ideal * a0) ** 2) + (r - a0) ** 2 / (a0 ** 2) + (vx * x + vy * y) ** 2
 G = 0 * (thrust / (isp * g0))
 dFdU = F.jacobian(U)
 dFdX = F.jacobian(X)
@@ -124,6 +123,9 @@ for i in range(3, 10):
     print("Finite difference: ", (J(u_test1) - J(u_test2)) / (2 * eps))
     print("")
 """
-print("negative X: ", solution(-1))
-print(f.dx(-0.0000000001, np.array([0.02381024, 0.02381024]), np.array([10, 0, 0, 0, 0, 0, 1])))
-print("dFdX: ", dFdX[2, 2])
+drag_dX = drag.diff(X)
+print(drag_dX[2])
+drag_func = sympy.lambdify((X,), drag)
+drag_dX_func = sympy.lambdify((X,), drag_dX)
+print("drag: ", f.dx(0, u(0), np.array([10, 0, 0, 0, 0, 0, 1])))
+

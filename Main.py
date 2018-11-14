@@ -19,9 +19,9 @@ thrust = T1 + T2
 phi = sympy.atan2(y, x)
 phi1 = (vx * y - x * vy) / (x ** 2 + y ** 2)
 inertia = rocket_inertia * m
-drag = 0.5 * p0 * sympy.exp(-(r - 1) / h0) * Cd * A * v
-ax = thrust * sympy.cos(theta) / m - alpha * x / (r ** 3) + vx * thrust / (isp * g0 * m) - 0 * drag * vx
-ay = thrust * sympy.sin(theta) / m - alpha * y / (r ** 3) + vy * thrust / (isp * g0 * m) - 0 * drag * vy
+drag = 0.5 * p0 * sympy.exp(-(r - 1) / h0) * Cd * A * v ** 2
+ax = thrust * sympy.cos(theta) / m - alpha * x / (r ** 3) + vx * thrust / (isp * g0 * m) - drag * vx
+ay = thrust * sympy.sin(theta) / m - alpha * y / (r ** 3) + vy * thrust / (isp * g0 * m) - drag * vy
 m_dot = -thrust / isp / g0
 theta2 = (0.75 * meter_to_distance_unit_coeff / inertia) * (T2 - T1)
 e_theta = np.array([1, y/x])
@@ -31,7 +31,7 @@ r_cross_v = vx * y - vy * x
 
 
 F = sympy.Matrix([vx, vy, ax, ay, theta1, theta2, m_dot])
-H = (r_cross_v - v_ideal * a0) ** 2 / ((v_ideal * a0) ** 2) + (r - a0) ** 2 / (a0 ** 2) + (vx * x + vy * y) ** 2
+H = (r_cross_v - v_ideal * a0) ** 2 / ((v_ideal * a0) ** 2) + (r - a0) ** 2 / (a0 ** 2) + (vx * x + vy * y) ** 2 + theta1 ** 2
 G = 0 * (thrust / (isp * g0))
 dFdU = F.jacobian(U)
 dFdX = F.jacobian(X)
@@ -109,12 +109,13 @@ u.to_vector()
 
 start = chrono.time()
 
-result = optimize.minimize(J.J_wrapper, u.vector, method="SLSQP", options={"ftol": 1e-12}, jac=J.grad_wrapper,
+result = optimize.minimize(J.J_wrapper, u.vector, method="SLSQP", options={"ftol": 1e-12, "maxiter": 1000}, jac=J.grad_wrapper,
                            constraints=({"type": "ineq", "fun": thrust_constraint_min},
                                         {"type": "ineq", 'fun': thrust_constraint_max},
                                         {"type": "ineq", "fun": fuel_constraint}))
 print(result)
 u1 = TimeFunction(vector=result.x, dim=2)
+np.save("Results_vector_T400_n50", u1.vector)
 u1.to_func()
 grad = result.jac
 
@@ -143,24 +144,19 @@ Mass = P.vector[4::7]
 gr1 = grad[::2]
 gr2 = grad[1::2]
 plt.figure(1)
-plt.subplot(211)
-plt.plot(time_array_x, X1)
-plt.subplot(212)
-plt.plot(time_array_x, X2)
-plt.figure(2)
 plt.ylim((15, -15))
 plt.xlim((15, -15))
 plt.autoscale(False)
 plt.plot(earth_x, earth_y)
 plt.plot(X1, X2)
-plt.figure(3)
+plt.figure(2)
 plt.subplot(211)
-plt.plot(time_array_u, u1.vector[::2])
-plt.plot(time_array_u, u.vector[::2])
+plt.step(time_array_u, u1.vector[::2])
+plt.step(time_array_u, u.vector[::2])
 plt.subplot(212)
-plt.plot(time_array_u, u1.vector[1::2])
-plt.plot(time_array_u, u.vector[1::2])
-plt.figure(4)
+plt.step(time_array_u, u1.vector[1::2])
+plt.step(time_array_u, u.vector[1::2])
+plt.figure(3)
 plt.plot(earth_x, earth_y)
 plt.plot(orbit_x, orbit_y)
 plt.plot(ideal_orbit_x, ideal_orbit_y)
