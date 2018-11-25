@@ -74,7 +74,7 @@ class TimeFunction:
         self.dim = dim
         end = time.time()
         to_vector_time += end - start
-        print(to_vector_time)
+        # print(to_vector_time)
 
     def to_func(self):
         v = np.reshape(self.vector, (-1, self.dim))
@@ -143,11 +143,10 @@ class DynamicalSystem:
             dx = self.f.evaluate(t, u.evaluate(t), x_at_t)
             return dx
 
-        solve = integrate.solve_ivp(func, (0, T), self.x0, dense_output=True, atol=1e-12, rtol=1e-12).sol
+        solve = integrate.solve_ivp(func, (0, T), self.x0, dense_output=True, atol=1e-14, rtol=1e-14).sol
         solution = TimeFunction(f=solve.__call__)
         end = time.time()
         solving_time += end - start
-        print("System time: ", solving_time)
         return solution
 
 
@@ -167,12 +166,11 @@ class Functional:
             return self.g.evaluate(u(t), x(t))
 
         j = integrate.quad(g_integrable, 0, T, epsrel=1e-14, epsabs=1e-14)[0] + self.h.evaluate(x(T))
-        print("h: ", self.h.evaluate(x(T)))
+        print("J: ", j)
         return j
 
     def grad(self, u):
         x = self.system.solve(u)
-        print(u(T))
         global grad_time
         start = time.time()
         if self.g == 0:
@@ -209,7 +207,7 @@ class Functional:
         grad = TimeFunction(grad_eval)
         end = time.time()
         grad_time += end - start
-        print("Grad time: ", grad_time)
+        #print("Grad time: ", grad_time)
         return grad
 
     def grad_vector(self, u):
@@ -234,7 +232,6 @@ class Functional:
         end = time.time()
         J_time = J_time + end - start
         # print("J time: ", J_time)
-        print("J :", j)
         return j
 
 
