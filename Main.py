@@ -24,19 +24,19 @@ ax = thrust * sympy.cos(theta) / m - alpha * x / (r ** 3) + vx * thrust / (isp *
 ay = thrust * sympy.sin(theta) / m - alpha * y / (r ** 3) + vy * thrust / (isp * g0 * m) - drag * vy
 m_dot = -thrust / isp / g0
 theta2 = (0.75 * meter_to_distance_unit_coeff / inertia) * (T2 - T1)
-e_theta = np.array([1, y/x])
-e_theta = 1/sympy.sqrt(1 + (y/x) ** 2) * e_theta
+e_theta = np.array([1, y / x])
+e_theta = 1 / sympy.sqrt(1 + (y / x) ** 2) * e_theta
 v_vector = np.array([vx, vy])
 r_cross_v = vx * y - vy * x
 
-
 F = sympy.Matrix([vx, vy, ax, ay, theta1, theta2, m_dot])
-H = 0 * x
+#H = 0 * x
+H = (r - a0) ** 2 / a0 ** 2 + (v - v_ideal) ** 2 / v_ideal ** 2 + (vx * x + vy * y) ** 2 + theta1 ** 2
 H_r = (r - a0) / a0
 H_v = (v - v_ideal) / v_ideal
 H_dot = (vx * x + vy * y)
 H_theta1 = theta1
-G = (thrust / (isp * g0))
+G = 0 * (thrust / (isp * g0))
 dFdU = F.jacobian(U)
 dFdX = F.jacobian(X)
 dHdX = H.diff(X)
@@ -100,12 +100,12 @@ def dhdx_theta1(x_at_t):
     return dhdx_tem_theta1(x_at_t).ravel()
 
 
-"""def u_eval(time_value):
+def u_eval(time_value):
     if time_value < 70 * time_coff:
-        return np.array([9.806 * 7000 * newton_to_force_unit_coeff, 9.806 * 7000 * newton_to_force_unit_coeff])
+        return np.array([9.806 * 3500 * newton_to_force_unit_coeff, 9.806 * 3500 * newton_to_force_unit_coeff])
     else:
-        return np.array([9.806 * (7000 - 1000 * (time_value - 70 * time_coff)) * newton_to_force_unit_coeff, 9.806 * (7000 - 1000.1 * (time_value - 70 * time_coff)) * newton_to_force_unit_coeff])
-"""
+        return np.array([9.806 * (3500 - 500 * (time_value - 70 * time_coff)) * newton_to_force_unit_coeff,
+                         9.806 * (3500 - 500.1 * (time_value - 70 * time_coff)) * newton_to_force_unit_coeff])
 
 
 def thrust_constraint_min(vector):
@@ -126,6 +126,7 @@ def solve_for_orbit(x_at_t0):
         dy = np.array([y[2], y[3], - alpha * y[0] / (np.sqrt(y[0] ** 2 + y[1] ** 2) ** 3),
                        - alpha * y[1] / (np.sqrt(y[0] ** 2 + y[1] ** 2) ** 3), 0])
         return dy
+
     simple_x_at_0 = np.array([x_at_t0[0], x_at_t0[1], x_at_t0[2], x_at_t0[3], x_at_t0[6]])
     solve = integrate.solve_ivp(func, (0, 600), simple_x_at_0, dense_output=True, rtol=1e-13, atol=1e-8).sol
     solution = TimeFunction(f=solve.__call__)
@@ -145,13 +146,14 @@ J_r = Functional(system, 0, h_r)
 J_v = Functional(system, 0, h_v)
 J_dot = Functional(system, 0, h_dot)
 J_theta1 = Functional(system, 0, h_theta1)
-u_vect = np.load("Results_vector_T400_n50.npy")
-u = TimeFunction(vector=u_vect, dim=2)
-u.to_func()
+u = TimeFunction(f=u_eval)
+# u.vector = (np.load("Results_vector_T400_n100.npy"))
 
+
+u.to_vector()
 
 def h_constraint(vector, x_at_t=None):
-    if not(x_at_t is None):
+    if not (x_at_t is None):
         return np.array([h_r.evaluate(x_at_t), h_v.evaluate(x_at_t), h_dot.evaluate(x_at_t), h_theta1.evaluate(x_at_t)])
     u = TimeFunction(vector=vector, dim=2)
     u.to_func()
@@ -168,28 +170,22 @@ def h_constraint_grad(vector):
                      J_theta1.grad_wrapper(vector)))
 
 
+trust_fuel = optimize.LinearConstraint(np.ones(2 * n) * dt / isp / g0, 0, (16290 - 550) * kg_to_mass_unit__coeff)
+trust_thrust = optimize.LinearConstraint(np.eye(2 * n), np.zeros(2 * n),
+                                         16000 * 9.806 * newton_to_force_unit_coeff * np.ones(2 * n))
+trust_h = optimize.NonlinearConstraint(h_constraint, np.zeros(4), np.zeros(4), jac=h_constraint_grad)
 start = chrono.time()
-x_1 = system.solve(u)(T)
-jacobian = np.stack((h_r.dx(x_1), h_v.dx(x_1), h_dot.dx(x_1), h_theta1.dx(x_1)))
-print(jacobian)
-solution = np.linalg.lstsq(jacobian, -h_constraint(u.vector))[0]
-print("solution", solution)
-x_2 = x_1 + solution
-print(x_1)
-print(x_2)
-print(h_constraint(0, x_1))
-print(h_constraint(0, x_1 + solution))
-uu, s, vv = np.linalg.svd(np.stack((h_r.dx(x_2), h_v.dx(x_2), h_dot.dx(x_2), h_theta1.dx(x_2))))
-print(s)
-print(np.linalg.norm(solution))
-"""result = optimize.minimize(J.J_wrapper, u.vector, method="SLSQP", options={"ftol": 1e-8, "maxiter": 1000}, jac=J.grad_wrapper,
+result = optimize.minimize(J.J_wrapper, u.vector, method="SLSQP", options={"ftol": 1e-12, "maxiter": 1000, "iprint": 3, "disp": True}, jac=J.grad_wrapper,
                            constraints=({"type": "ineq", "fun": thrust_constraint_min},
                                         {"type": "ineq", 'fun': thrust_constraint_max},
-                                        {"type": "ineq", "fun": fuel_constraint},
-                                        {"type": "eq", "fun": h_constraint, "jac": h_constraint_grad}))
+                                        {"type": "ineq", "fun": fuel_constraint}))
+"""result = optimize.minimize(J.J_wrapper, u.vector, method="trust-constr", jac=J.grad_wrapper,
+                           hess=optimize.BFGS("skip_update"),
+                           constraints=(trust_fuel, trust_thrust, trust_h))
+"""
 print(result)
 u1 = TimeFunction(vector=result.x, dim=2)
-np.save("Results_vector_with_g_T400_n100", u1.vector)
+np.save("Results_vector_T1200_n50", u1.vector)
 u1.to_func()
 grad = result.jac
 
@@ -237,4 +233,3 @@ plt.plot(ideal_orbit_x, ideal_orbit_y)
 end = chrono.time()
 print("time: ", end - start)
 plt.show()
-"""

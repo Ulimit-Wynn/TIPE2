@@ -7,7 +7,7 @@ kg_to_mass_unit__coeff = 1 / 16290
 meter_to_distance_unit_coeff = 1 / 637100
 time_coff = 1 / 60
 newton_to_force_unit_coeff = kg_to_mass_unit__coeff * meter_to_distance_unit_coeff / (time_coff ** 2)
-T = 400 * time_coff
+T = 600 * time_coff
 n = 50
 dt = T / n
 grad_time = 0
@@ -143,7 +143,7 @@ class DynamicalSystem:
             dx = self.f.evaluate(t, u.evaluate(t), x_at_t)
             return dx
 
-        solve = integrate.solve_ivp(func, (0, T), self.x0, dense_output=True, atol=1e-14, rtol=1e-14).sol
+        solve = integrate.solve_ivp(func, (0, T), self.x0, dense_output=True, atol=1e-12, rtol=1e-12).sol
         solution = TimeFunction(f=solve.__call__)
         end = time.time()
         solving_time += end - start
@@ -166,6 +166,7 @@ class Functional:
             return self.g.evaluate(u(t), x(t))
 
         j = integrate.quad(g_integrable, 0, T, epsrel=1e-14, epsabs=1e-14)[0] + self.h.evaluate(x(T))
+        print("h: ", self.h.evaluate(x(T)))
         print("J: ", j)
         return j
 
