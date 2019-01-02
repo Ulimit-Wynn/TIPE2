@@ -19,7 +19,7 @@ thrust = T1 + T2
 phi = sympy.atan2(y, x)
 phi1 = (vx * y - x * vy) / (x ** 2 + y ** 2)
 inertia = rocket_inertia * m
-drag = 0.5 * p0 * sympy.exp(-(r - 1) / h0) * Cd * A * v ** 2
+drag = 0.5 * p0 * sympy.exp(-(r - 1) / h0) * Cd * A * v
 ax = thrust * sympy.cos(theta) / m - alpha * x / (r ** 3) + vx * thrust / (isp * g0 * m) - drag * vx
 ay = thrust * sympy.sin(theta) / m - alpha * y / (r ** 3) + vy * thrust / (isp * g0 * m) - drag * vy
 m_dot = -thrust / isp / g0
@@ -30,7 +30,7 @@ v_vector = np.array([vx, vy])
 r_cross_v = vx * y - vy * x
 
 F = sympy.Matrix([vx, vy, ax, ay, theta1, theta2, m_dot])
-#H = 0 * x
+H_zero = 0 * x
 H = (r - a0) ** 2 / a0 ** 2 + (v - v_ideal) ** 2 / v_ideal ** 2 + (vx * x + vy * y) ** 2 + theta1 ** 2
 H_r = (r - a0) / a0
 H_v = (v - v_ideal) / v_ideal
@@ -39,6 +39,7 @@ H_theta1 = theta1
 G = 0 * (thrust / (isp * g0))
 dFdU = F.jacobian(U)
 dFdX = F.jacobian(X)
+dHdX_zero = H_zero.diff(X)
 dHdX = H.diff(X)
 dHdX_r = H_r.diff(X)
 dHdX_v = H_v.diff(X)
@@ -49,11 +50,13 @@ dGdX = G.diff(X)
 f_tem = sympy.lambdify((t, U, X), F)
 dfdx = sympy.lambdify((t, U, X), dFdX)
 dfdu_tem = sympy.lambdify((t, U, X), dFdU)
+h_eval_zero = sympy.lambdify((X,), H_zero)
 h_eval = sympy.lambdify((X,), H)
 h_eval_r = sympy.lambdify((X,), H_r)
 h_eval_v = sympy.lambdify((X,), H_v)
 h_eval_dot = sympy.lambdify((X,), H_dot)
 h_eval_theta1 = sympy.lambdify((X,), H_theta1)
+dhdx_tem_zero = sympy.lambdify((X,), dHdX_zero)
 dhdx_tem = sympy.lambdify((X,), dHdX)
 dhdx_tem_r = sympy.lambdify((X,), dHdX_r)
 dhdx_tem_v = sympy.lambdify((X,), dHdX_v)
@@ -78,6 +81,10 @@ def dgdu(u_at_t, x_at_t):
 
 def dgdx(u_at_t, x_at_t):
     return dgdx_tem(u_at_t, x_at_t).ravel()
+
+
+def dhdx_zero(x_at_t):
+    return dhdx_tem_zero(x_at_t).ravel()
 
 
 def dhdx(x_at_t):
@@ -135,6 +142,7 @@ def solve_for_orbit(x_at_t0):
 
 f = DifferentiableFunction(f=f_eval, dfdx=dfdx, dfdu=dfdu)
 g = DifferentiableFunction(f=g_eval, dfdx=dgdx, dfdu=dgdu)
+h_zero = DifferentiableFunction(f=h_eval_zero, dfdx=dhdx_zero)
 h = DifferentiableFunction(f=h_eval, dfdx=dhdx)
 h_r = DifferentiableFunction(f=h_eval_r, dfdx=dhdx_r)
 h_v = DifferentiableFunction(f=h_eval_v, dfdx=dhdx_v)
@@ -142,15 +150,17 @@ h_dot = DifferentiableFunction(f=h_eval_dot, dfdx=dhdx_dot)
 h_theta1 = DifferentiableFunction(f=h_eval_theta1, dfdx=dhdx_theta1)
 system = DynamicalSystem(f, x0)
 J = Functional(system, g, h)
+J_zero = Functional(system, g, h_zero)
+J_h = Functional(system, 0, h)
 J_r = Functional(system, 0, h_r)
 J_v = Functional(system, 0, h_v)
 J_dot = Functional(system, 0, h_dot)
 J_theta1 = Functional(system, 0, h_theta1)
 u = TimeFunction(f=u_eval)
-# u.vector = (np.load("Results_vector_T400_n100.npy"))
+u.vector = (np.load("Manual testing.npy"))
 
 
-u.to_vector()
+# u.to_vector()
 
 def h_constraint(vector, x_at_t=None):
     if not (x_at_t is None):
@@ -174,18 +184,20 @@ trust_fuel = optimize.LinearConstraint(np.ones(2 * n) * dt / isp / g0, 0, (16290
 trust_thrust = optimize.LinearConstraint(np.eye(2 * n), np.zeros(2 * n),
                                          16000 * 9.806 * newton_to_force_unit_coeff * np.ones(2 * n))
 trust_h = optimize.NonlinearConstraint(h_constraint, np.zeros(4), np.zeros(4), jac=h_constraint_grad)
+# trust_h = optimize.NonlinearConstraint(J_h.J_wrapper, 0, 0, jac=J_h.grad_wrapper)
 start = chrono.time()
-result = optimize.minimize(J.J_wrapper, u.vector, method="SLSQP", options={"ftol": 1e-12, "maxiter": 1000, "iprint": 3, "disp": True}, jac=J.grad_wrapper,
+result = optimize.minimize(J.J_wrapper, u.vector, method="SLSQP", options={"ftol": 1e-15, "maxiter": 1000, "iprint": 3, "disp": True}, jac=J.grad_wrapper,
                            constraints=({"type": "ineq", "fun": thrust_constraint_min},
                                         {"type": "ineq", 'fun': thrust_constraint_max},
-                                        {"type": "ineq", "fun": fuel_constraint}))
-"""result = optimize.minimize(J.J_wrapper, u.vector, method="trust-constr", jac=J.grad_wrapper,
+                                        {"type": "ineq", "fun": fuel_constraint},))
+"""result = optimize.minimize(J_zero.J_wrapper, u.vector, method="trust-constr", jac=J_zero.grad_wrapper,
                            hess=optimize.BFGS("skip_update"),
-                           constraints=(trust_fuel, trust_thrust, trust_h))
+                           constraints=(trust_fuel, trust_thrust, trust_h),
+                           options={'initial_constr_penalty': 1000.0})
 """
 print(result)
 u1 = TimeFunction(vector=result.x, dim=2)
-np.save("Results_vector_T1200_n50", u1.vector)
+np.save("Results_vector_n50", u1.vector)
 u1.to_func()
 grad = result.jac
 

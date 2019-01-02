@@ -1,7 +1,7 @@
 import numpy as np
 import scipy.integrate as integrate
 import time
-import pickle
+
 
 kg_to_mass_unit__coeff = 1 / 16290
 meter_to_distance_unit_coeff = 1 / 637100
@@ -234,8 +234,3 @@ class Functional:
         J_time = J_time + end - start
         # print("J time: ", J_time)
         return j
-
-
-def save_object(obj, filename):
-    with open(filename, 'wb') as output:  # Overwrites any existing file.
-        pickle.dump(obj, output, pickle.HIGHEST_PROTOCOL)
