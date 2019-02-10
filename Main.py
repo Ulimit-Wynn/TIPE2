@@ -186,15 +186,15 @@ trust_thrust = optimize.LinearConstraint(np.eye(2 * n), np.zeros(2 * n),
 trust_h = optimize.NonlinearConstraint(h_constraint, np.zeros(4), np.zeros(4), jac=h_constraint_grad)
 # trust_h = optimize.NonlinearConstraint(J_h.J_wrapper, 0, 0, jac=J_h.grad_wrapper)
 start = chrono.time()
-result = optimize.minimize(J.J_wrapper, u.vector, method="SLSQP", options={"ftol": 1e-15, "maxiter": 1000, "iprint": 3, "disp": True}, jac=J.grad_wrapper,
+"""result = optimize.minimize(J.J_wrapper, u.vector, method="SLSQP", options={"ftol": 1e-15, "maxiter": 1000, "iprint": 3, "disp": True}, jac=J.grad_wrapper,
                            constraints=({"type": "ineq", "fun": thrust_constraint_min},
                                         {"type": "ineq", 'fun': thrust_constraint_max},
-                                        {"type": "ineq", "fun": fuel_constraint},))
-"""result = optimize.minimize(J_zero.J_wrapper, u.vector, method="trust-constr", jac=J_zero.grad_wrapper,
+                                        {"type": "ineq", "fun": fuel_constraint},))"""
+result = optimize.minimize(J_zero.J_wrapper, u.vector, method="trust-constr", jac=J_zero.grad_wrapper,
                            hess=optimize.BFGS("skip_update"),
                            constraints=(trust_fuel, trust_thrust, trust_h),
                            options={'initial_constr_penalty': 1000.0})
-"""
+
 print(result)
 u1 = TimeFunction(vector=result.x, dim=2)
 np.save("Results_vector_n50", u1.vector)
