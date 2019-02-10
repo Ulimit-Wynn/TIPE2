@@ -193,7 +193,7 @@ start = chrono.time()
 result = optimize.minimize(J_zero.J_wrapper, u.vector, method="trust-constr", jac=J_zero.grad_wrapper,
                            hess=optimize.BFGS("skip_update"),
                            constraints=(trust_fuel, trust_thrust, trust_h),
-                           options={'initial_constr_penalty': 1000.0})
+                           options={"verbose":3})
 
 print(result)
 u1 = TimeFunction(vector=result.x, dim=2)
