@@ -20,21 +20,7 @@ X = sympy.Matrix([x, y, vx, vy, theta, theta1, m])
 U = sympy.Matrix([T1, T2])
 r = sympy.sqrt(x ** 2 + y ** 2)
 v = sympy.sqrt((vx ** 2 + vy ** 2))
-r1 = (x * vx + y * vy) / r
 thrust = T1 + T2
-phi = sympy.atan2(y, x)
-phi1 = (vx * y - x * vy) / (x ** 2 + y ** 2)
-inertia = rocket_inertia * m
-drag = 0.5 * p0 * sympy.exp(-(r - 1) / h0) * Cd * A * v
-ax = thrust * sympy.cos(theta) / m - alpha * x / (r ** 3) + vx * thrust / (isp * g0 * m) - drag * vx
-ay = thrust * sympy.sin(theta) / m - alpha * y / (r ** 3) + vy * thrust / (isp * g0 * m) - drag * vy
-m_dot = -thrust / isp / g0
-theta2 = (0.75 * meter_to_distance_unit_coeff / inertia) * (T2 - T1)
-e_theta = np.array([1, y / x])
-e_theta = 1 / sympy.sqrt(1 + (y / x) ** 2) * e_theta
-v_vector = np.array([vx, vy])
-r_cross_v = vx * y - vy * x
-F = sympy.Matrix([vx, vy, ax, ay, theta1, theta2, m_dot])
 H_zero = 0 * x
 H = (r - a0) ** 2 / a0 ** 2 + (v - v_ideal) ** 2 / v_ideal ** 2 + (vx * x + vy * y) ** 2 + theta1 ** 2
 H_r = (r - a0) / a0
@@ -42,8 +28,6 @@ H_v = (v - v_ideal) / v_ideal
 H_dot = (vx * x + vy * y)
 H_theta1 = theta1
 G = 0*(thrust / (isp * g0))
-dFdU = F.jacobian(U)
-dFdX = F.jacobian(X)
 dHdX_zero = H_zero.diff(X)
 dHdX = H.diff(X)
 dHdX_r = H_r.diff(X)
@@ -52,9 +36,6 @@ dHdX_dot = H_dot.diff(X)
 dHdX_theta1 = H_theta1.diff(X)
 dGdU = G.diff(U)
 dGdX = G.diff(X)
-f_tem = sympy.lambdify((t, U, X), F)
-dfdx = sympy.lambdify((t, U, X), dFdX)
-dfdu_tem = sympy.lambdify((t, U, X), dFdU)
 h_eval_zero = sympy.lambdify((X,), H_zero)
 h_eval = sympy.lambdify((X,), H)
 h_eval_r = sympy.lambdify((X,), H_r)
@@ -80,25 +61,38 @@ def f_eval(time_value, u_at_t, x_at_t):
     vy = x_at_t[3]
     r = np.sqrt(x**2 + y**2)
     v = np.sqrt(vx**2 + vy**2)
-    drag = 0.5 * p0 * Cd * A * v * np.exp(-(r - 1) / h0)
-    ax = thrust * np.cos(x_at_t[4]) / x_at_t[6] - alpha * x / r**3 + thrust * vx / isp / g0 / x_at_t[6] - drag * vx
-    ay = thrust * np.sin(x_at_t[4]) / x_at_t[6] - alpha * y / r**3 + thrust * vy / isp / g0 / x_at_t[6] - drag * vy
-    theta2 = (0.75 * meter_to_distance_unit_coeff / rocket_inertia / x_at_t[6]) * (u_at_t[1] - u_at_t[0])
-    return np.array([vx, vy, ax, ay, x_at_t[5], theta2, -thrust / isp / g0])
+    m_inv = 1/x_at_t[6]
+    drag = half_A_Cd_p0 * v * np.exp(-(r - 1) / h0)
+    r_cubed = r * r * r
+    ax = thrust * math.cos(x_at_t[4]) * m_inv - alpha * x / r_cubed + thrust * vx * inv_isp_g0 * m_inv - drag * vx
+    ay = thrust * math.sin(x_at_t[4]) * m_inv - alpha * y / r_cubed + thrust * vy * inv_isp_g0 * m_inv - drag * vy
+    theta2 = (_3_4ths_meter_to_distance_unit_coeff__over__rocket_inertia * m_inv) * (u_at_t[1] - u_at_t[0])
+    results = np.zeros(7)
+    results[0] = vx
+    results[1] = vy
+    results[2] = ax
+    results[3] = ay
+    results[4] = x_at_t[5]
+    results[5] = theta2
+    results[6] = -thrust * inv_isp_g0
+    return results
 
 
 def dfdu(time_value_,u_at_t, x_at_t):
     vx = x_at_t[2]
     vy = x_at_t[3]
-    m = x_at_t[6]
+    m_inv = 1/x_at_t[6]
     theta = x_at_t[4]
-    return np.array([[0, 0],
-                     [0, 0],
-                     [1/m * (np.cos(theta) + vx / (isp * g0)), 1/m * (np.cos(theta) + vx / (isp * g0))],
-                     [1 / m * (np.sin(theta) + vy / (isp * g0)), 1 / m * (np.sin(theta) + vy / (isp * g0))],
-                     [0, 0],
-                     [-0.75 * meter_to_distance_unit_coeff / (rocket_inertia * m), 0.75 * meter_to_distance_unit_coeff / (rocket_inertia * m)],
-                     [-1/isp / g0, -1/isp / g0]])
+    results = np.zeros((7,2))
+    results[2, 0] = m_inv * (math.cos(theta) + vx * inv_isp_g0)
+    results[2, 1] = m_inv * (math.cos(theta) + vx * inv_isp_g0)
+    results[3, 0] = m_inv * (math.sin(theta) + vy * inv_isp_g0)
+    results[3, 1] = m_inv * (math.sin(theta) + vy * inv_isp_g0)
+    results[5, 0] = -_3_4ths_meter_to_distance_unit_coeff__over__rocket_inertia * m_inv
+    results[5, 1] = _3_4ths_meter_to_distance_unit_coeff__over__rocket_inertia * m_inv
+    results[6, 0] = -inv_isp_g0
+    results[6, 1] = -inv_isp_g0
+    return results
 
 
 def dfdx(time_value, u_at_t, x_at_t):
@@ -141,7 +135,6 @@ def dfdx(time_value, u_at_t, x_at_t):
     result[5, 6] = _3_4ths_meter_to_distance_unit_coeff__over__rocket_inertia * (u_at_t[0] - u_at_t[1]) * m_inv * m_inv
 
     return result
-
 
 
 def dgdu(u_at_t, x_at_t):
@@ -249,22 +242,43 @@ def h_constraint_grad(vector):
                      J_theta1.grad_wrapper(vector)))
 
 
+def better_h_constraint_grad(vector):
+    u = TimeFunction(vector=vector, dim=2)
+    u.to_func()
+    x = system.solve(u)
+    x_T = x(T)
+    def func(t, y):
+        P = np.reshape(y, (4, 7))
+        return np.ravel(P @ dfdx(T - t, u(T - t), x(T - t)))
+    p_sol = integrate.solve_ivp(func, (0, T), np.concatenate((dhdx_r(x_T), dhdx_v(x_T), dhdx_dot(x_T), dhdx_theta1(x_T))), dense_output=True, atol=1e-12, rtol=1e-12).sol
+
+    def p_eval(t):
+        return np.reshape(p_sol(T - t), (4, 7))
+
+    def grad_eval(t):
+        return p_eval(t) @ dfdu(t, u(t), x(t))
+    grad_list = [1 / 2 * grad_eval(dt * (i + 1 / (2 * np.sqrt(3)))) + 1 / 2 *
+                      grad_eval(dt * (i + 1 - 1 / (2 * np.sqrt(3)))) for i in range(0, n)]
+    return T / n * np.concatenate(grad_list, axis=1)
+
+
 trust_fuel = optimize.LinearConstraint(np.ones(2 * n) * dt / isp / g0, 0, (16290 - 550) * kg_to_mass_unit__coeff)
 trust_thrust = optimize.LinearConstraint(np.eye(2 * n), np.zeros(2 * n),
                                          16000 * 9.806 * newton_to_force_unit_coeff * np.ones(2 * n))
 trust_h = optimize.NonlinearConstraint(h_constraint, np.zeros(4), np.zeros(4), jac=h_constraint_grad)
 # trust_h = optimize.NonlinearConstraint(J_h.J_wrapper, 0, 0, jac=J_h.grad_wrapper)
 start = chrono.time()
-result = optimize.minimize(J.J_wrapper, u.vector, method="SLSQP", options={"ftol": 1e-15, "maxiter": 1000, "iprint": 3, "disp": True}, jac=J.grad_wrapper,
+"""result = optimize.minimize(J.J_wrapper, u.vector, method="SLSQP", options={"ftol": 1e-15, "maxiter": 1000, "iprint": 3, "disp": True}, jac=J.grad_wrapper,
                            constraints=({"type": "ineq", "fun": thrust_constraint_min},
                                         {"type": "ineq", 'fun': thrust_constraint_max},
                                         {"type": "ineq", "fun": fuel_constraint},))
+"""
 """result = optimize.minimize(J_zero.J_wrapper, u.vector, method="trust-constr", jac=J_zero.grad_wrapper,
                            hess=optimize.BFGS("skip_update"),
                            constraints=(trust_fuel, trust_thrust, trust_h),
                            options={"verbose":3})"""
 
-print(result)
+"""print(result)
 u1 = TimeFunction(vector=result.x, dim=2)
 np.save("Results_vector_n100", u1.vector)
 u1.to_func()
@@ -314,3 +328,4 @@ plt.plot(ideal_orbit_x, ideal_orbit_y)
 end = chrono.time()
 print("time: ", end - start)
 plt.show()
+"""

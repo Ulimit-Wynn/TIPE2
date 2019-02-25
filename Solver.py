@@ -66,7 +66,6 @@ class TimeFunction:
         start = time.time()
         dt = period / step
         dim = np.size(self.evaluate(0))
-        #v = np.array([(self.integrate(i * period / step, (i + 1) * period / step) * step / period) for i in range(0, step)])
         v = np.array([1 / 2 * self(dt * (i + 1 / (2 * np.sqrt(3)))) + 1 / 2 *
                       self(dt * (i + 1 - 1 / (2 * np.sqrt(3)))) for i in range(0, step)])
         v = v.ravel()
