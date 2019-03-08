@@ -12,6 +12,8 @@ _3_4ths_meter_to_distance_unit_coeff__over__rocket_inertia = \
     .75 * meter_to_distance_unit_coeff / rocket_inertia
 inv_h0 = 1. / h0
 alpha = Grav * M
+ideal_orbit_x = a0 * np.array([np.cos(i * 2 * np.pi / 5000) for i in range(0, 5000)])
+ideal_orbit_y = a0 * np.array([np.sin(i * 2 * np.pi / 5000) for i in range(0, 5000)])
 x0 = np.array([10, 0, 0, 0, 0, 0, 1])
 t = sympy.symbols('t')
 x, y, vx, vy, theta, theta1, m = sympy.symbols('x y vx vy theta theta1 m')
@@ -27,7 +29,7 @@ H_r = (r - a0) / a0
 H_v = (v - v_ideal) / v_ideal
 H_dot = (vx * x + vy * y)
 H_theta1 = theta1
-G = 0*(thrust / (isp * g0))
+G = (thrust / (isp * g0))
 dHdX_zero = H_zero.diff(X)
 dHdX = H.diff(X)
 dHdX_r = H_r.diff(X)
@@ -199,6 +201,7 @@ def solve_for_orbit(x_at_t0):
     simple_x_at_0 = np.array([x_at_t0[0], x_at_t0[1], x_at_t0[2], x_at_t0[3], x_at_t0[6]])
     solve = integrate.solve_ivp(func, (0, 600), simple_x_at_0, dense_output=True, rtol=1e-13, atol=1e-8).sol
     solution = TimeFunction(f=solve.__call__)
+    print("orbit solved")
     return solution
 
 
@@ -219,10 +222,11 @@ J_v = Functional(system, 0, h_v)
 J_dot = Functional(system, 0, h_dot)
 J_theta1 = Functional(system, 0, h_theta1)
 u = TimeFunction(f=u_eval)
-#u.vector = (np.load("least_square.npy"))
+u.vector = (np.load("least_square.npy"))
 
 
-u.to_vector()
+# u.to_vector()
+
 
 def h_constraint(vector, x_at_t=None):
     if not (x_at_t is None):
@@ -247,6 +251,7 @@ def better_h_constraint_grad(vector):
     u.to_func()
     x = system.solve(u)
     x_T = x(T)
+
     def func(t, y):
         P = np.reshape(y, (4, 7))
         return np.ravel(P @ dfdx(T - t, u(T - t), x(T - t)))
@@ -257,9 +262,19 @@ def better_h_constraint_grad(vector):
 
     def grad_eval(t):
         return p_eval(t) @ dfdu(t, u(t), x(t))
-    grad_list = [1 / 2 * grad_eval(dt * (i + 1 / (2 * np.sqrt(3)))) + 1 / 2 *
-                      grad_eval(dt * (i + 1 - 1 / (2 * np.sqrt(3)))) for i in range(0, n)]
+    grad_list = [sum([W_i[j] * grad_eval(dt * (i + X_i[j])) for j in range(deg)]) for i in range(0, n)]
+    solution = calculate_orbit(x_T)
+    orbit_ani.set_data(solution[0], solution[1])
+    plt.pause(0.01)
+    control1.set_data(time_array_u, u.vector[::2])
+    plt.pause(0.01)
+    control2.set_data(time_array_u, u.vector[1::2])
+    plt.pause(0.01)
     return T / n * np.concatenate(grad_list, axis=1)
+
+
+def consecutive_diff(vector, plots=None):
+    return sum((vector[i] - vector[i-2])**2 for i in range(2, len(vector)))
 
 
 trust_fuel = optimize.LinearConstraint(np.ones(2 * n) * dt / isp / g0, 0, (16290 - 550) * kg_to_mass_unit__coeff)
@@ -268,19 +283,38 @@ trust_thrust = optimize.LinearConstraint(np.eye(2 * n), np.zeros(2 * n),
 trust_h = optimize.NonlinearConstraint(h_constraint, np.zeros(4), np.zeros(4), jac=h_constraint_grad)
 # trust_h = optimize.NonlinearConstraint(J_h.J_wrapper, 0, 0, jac=J_h.grad_wrapper)
 start = chrono.time()
-"""result = optimize.minimize(J.J_wrapper, u.vector, method="SLSQP", options={"ftol": 1e-15, "maxiter": 1000, "iprint": 3, "disp": True}, jac=J.grad_wrapper,
+fig1 = plt.figure(1)
+fig2 = plt.figure(2)
+ax1 = fig1.add_subplot(111)
+ax21 = fig2.add_subplot(211)
+ax22 = fig2.add_subplot(212)
+ax1.set_xlim(-30,30)
+ax1.set_ylim(-30,30)
+ax21.set_xlim(0, T)
+ax21.set_ylim(0, 16000 * 9.806 * newton_to_force_unit_coeff)
+ax22.set_xlim(0, T)
+ax22.set_ylim(0, 16000 * 9.806 * newton_to_force_unit_coeff)
+plt.ion()
+plt.show()
+ax1.plot(ideal_orbit_x, ideal_orbit_y)
+orbit_ani, = ax1.plot([0, 1, 2, 3, 4, 5], [0, 0, 0, 0, 0, 0])
+control1, = ax21.step([0], [0])
+control2, = ax22.step([0], [0])
+plt.pause(1)
+
+result = optimize.minimize(consecutive_diff, u.vector, [orbit_ani, control1, control2], method="SLSQP", options={"ftol": 1e-15, "maxiter": 1000, "iprint": 3, "disp": True},
                            constraints=({"type": "ineq", "fun": thrust_constraint_min},
                                         {"type": "ineq", 'fun': thrust_constraint_max},
-                                        {"type": "ineq", "fun": fuel_constraint},))
+                                        {"type": "ineq", "fun": fuel_constraint},
+                                        {"type": "eq", "fun": h_constraint, "jac": better_h_constraint_grad}))
+"""result = optimize.minimize(J_h.J_wrapper, u.vector, [orbit_ani, control1, control2], method="SLSQP", options={"ftol": 1e-15, "maxiter": 100, "iprint": 3, "disp": True}, jac=J_h.grad_wrapper,
+                           constraints=({"type": "ineq", "fun": thrust_constraint_min},
+                                        {"type": "ineq", 'fun': thrust_constraint_max},
+                                        {"type": "ineq", "fun": fuel_constraint}))
 """
-"""result = optimize.minimize(J_zero.J_wrapper, u.vector, method="trust-constr", jac=J_zero.grad_wrapper,
-                           hess=optimize.BFGS("skip_update"),
-                           constraints=(trust_fuel, trust_thrust, trust_h),
-                           options={"verbose":3})"""
-
-"""print(result)
+print(result)
 u1 = TimeFunction(vector=result.x, dim=2)
-np.save("Results_vector_n100", u1.vector)
+np.save("consecutive_diff_T600_n50", u1.vector)
 u1.to_func()
 grad = result.jac
 
@@ -328,4 +362,3 @@ plt.plot(ideal_orbit_x, ideal_orbit_y)
 end = chrono.time()
 print("time: ", end - start)
 plt.show()
-"""

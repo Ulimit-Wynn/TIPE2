@@ -1,7 +1,7 @@
 import numpy as np
 import scipy.integrate as integrate
+import matplotlib.pyplot as plt
 import time
-
 
 kg_to_mass_unit__coeff = 1 / 16290
 meter_to_distance_unit_coeff = 1 / 637100
@@ -17,6 +17,7 @@ integration_time = 0
 solving_time = 0
 Grav = 6.673 * (10 ** (-11)) * meter_to_distance_unit_coeff ** 3 / kg_to_mass_unit__coeff / (time_coff ** 2)
 M = 5.972 * (10 ** 24) * kg_to_mass_unit__coeff
+alpha = Grav * M
 p0 = 101325 * kg_to_mass_unit__coeff / meter_to_distance_unit_coeff / (time_coff ** 2)
 h0 = 8635 * meter_to_distance_unit_coeff
 A = (0.25 * 0.75 ** 2) * np.pi * meter_to_distance_unit_coeff ** 2
@@ -28,7 +29,13 @@ a0 = 10 + 900000 * meter_to_distance_unit_coeff
 v_ideal = 7400 * meter_to_distance_unit_coeff / time_coff
 rocket_radius = 0.75 * meter_to_distance_unit_coeff
 rocket_height = 16 * meter_to_distance_unit_coeff
-rocket_inertia = 1/12 * (3 * rocket_radius ** 2 + rocket_height ** 2) + 1/4 * rocket_height ** 2
+rocket_inertia = 1 / 12 * (3 * rocket_radius ** 2 + rocket_height ** 2) + 1 / 4 * rocket_height ** 2
+deg = 5
+X_i, W_i = np.polynomial.legendre.leggauss(deg)
+X_i = (X_i + 1) / 2
+W_i /= 2
+time_array_u = np.linspace(0, T, n)
+
 
 
 class DifferentiableFunction:
@@ -46,7 +53,7 @@ class TimeFunction:
         self.vector = vector
         self.dim = dim
 
-    def integrate(self, a, b):
+    def integrate_v(self, a, b):
         global integration_time
         start = time.time()
         v = []
@@ -66,9 +73,11 @@ class TimeFunction:
         start = time.time()
         dt = period / step
         dim = np.size(self.evaluate(0))
-        v = np.array([1 / 2 * self(dt * (i + 1 / (2 * np.sqrt(3)))) + 1 / 2 *
-                      self(dt * (i + 1 - 1 / (2 * np.sqrt(3)))) for i in range(0, step)])
+        v1 = np.array([1 / dt * TimeFunction.integrate_v(self, i * dt, (i + 1) * dt) for i in range(0, step)])
+        v = np.array([sum([W_i[j] * self(dt * (i + X_i[j])) for j in range(deg)])
+                      for i in range(0, step)])
         v = v.ravel()
+        v1 = v1.ravel()
         self.vector = v
         self.dim = dim
         end = time.time()
@@ -95,44 +104,6 @@ class DynamicalSystem:
     def __init__(self, f, x0):
         self.f = f
         self.x0 = x0
-
-    def solve_mass(self, u):
-        def func(t, m_at_t):
-            dm = np.array([-(u.evaluate(t)[0] + u.evaluate(t)[1]) / isp / g0])
-            return dm
-
-        solve = integrate.solve_ivp(func, (0, T), np.array([1]), dense_output=True, atol=1e-7, rtol=1e-7).sol
-        return solve
-
-    def solve_theta1(self, u, m):
-        def func(t, theta1):
-            theta2 = np.array([rocket_radius / (rocket_inertia * m(t)) * (u(t)[1] - u(t)[0])])
-            return theta2
-
-        solve = integrate.solve_ivp(func, (0, T), np.array([0]), dense_output=True, atol=1e-12, rtol=1e-12).sol
-        return solve
-
-    def solve_decoupled(self, u):
-        start = time.time()
-        m = self.solve_mass(u)
-        theta1 = self.solve_theta1(u, m)
-
-        def new_f(t, u_at_t, r_v_at_t, theta1_at_t, m_at_t):
-            temp = np.array([theta1_at_t[0], m_at_t[0]])
-            return self.f.evaluate(t, u_at_t, np.concatenate((r_v_at_t, temp)))[:-2]
-
-        def func(t, r_v_at_t):
-            drv = new_f(t, u(t), r_v_at_t, theta1(t), m(t))
-            return drv
-        solve = solve = integrate.solve_ivp(func, (0, T), self.x0[:-2], dense_output=True, atol=1e-12, rtol=1e-12).sol
-
-        def solution_eval(t):
-            temp = np.array([theta1(t)[0], m(t)[0]])
-            return np.concatenate((solve(t), temp))
-
-        solution = TimeFunction(f=solution_eval)
-        print("decoupled time: ", time.time() - start)
-        return solution
 
     def solve(self, u):
         global solving_time
@@ -169,7 +140,7 @@ class Functional:
         print("J: ", j)
         return j
 
-    def grad(self, u):
+    def grad(self, u, plots=None):
         x = self.system.solve(u)
         global grad_time
         start = time.time()
@@ -185,7 +156,8 @@ class Functional:
                     np.atleast_1d(self.system.f.dx(T - t, u(T - t), x(T - t)).transpose()) @
                     np.atleast_1d(y) + self.g.dx(u(T - t),
                                                  x(T - t)))
-        p_sol = integrate.solve_ivp(func, (0, T), np.atleast_1d(self.h.dx(x(T))), dense_output=True, atol=1e-12, rtol=1e-12).sol
+        p_sol = integrate.solve_ivp(func, (0, T), np.atleast_1d(self.h.dx(x(T))), dense_output=True, atol=1e-12,
+                                    rtol=1e-12).sol
 
         def p_eval(t):
             return p_sol(T - t)
@@ -204,27 +176,36 @@ class Functional:
                     np.atleast_1d(p(t))) + np.atleast_1d(
                     self.g.du(u(t), x(t)))
 
+        print(plots)
+        if plots is not None:
+            solution = calculate_orbit(x(T))
+            plots[0].set_data(solution[0], solution[1])
+            plt.pause(0.01)
+            plots[1].set_data(time_array_u, u.vector[::2])
+            plt.pause(0.01)
+            plots[2].set_data(time_array_u, u.vector[1::2])
+            plt.pause(0.01)
         grad = TimeFunction(grad_eval)
         end = time.time()
         grad_time += end - start
-        #print("Grad time: ", grad_time)
+        # print("Grad time: ", grad_time)
         return grad
 
-    def grad_vector(self, u):
+    def grad_vector(self, u, plots=None):
         u.to_func()
-        grad = self.grad(u)
+        grad = self.grad(u, plots)
         grad.to_vector()
         grad.vector = T / n * grad.vector
         return grad
 
-    def grad_wrapper(self, vector):
+    def grad_wrapper(self, vector, plots=None):
         start = time.time()
         u = TimeFunction(vector=vector, dim=int(np.size(vector) / n))
-        grad = self.grad_vector(u)
+        grad = self.grad_vector(u, plots)
         end = time.time()
         return grad.vector
 
-    def J_wrapper(self, vector):
+    def J_wrapper(self, vector, plots=None):
         global J_time
         start = time.time()
         u = TimeFunction(vector=vector, dim=int(np.size(vector) / n))
@@ -233,3 +214,21 @@ class Functional:
         J_time = J_time + end - start
         # print("J time: ", J_time)
         return j
+
+
+def calculate_orbit(x_at_t0):
+    x = x_at_t0[0]
+    y = x_at_t0[1]
+    vx = x_at_t0[2]
+    vy = x_at_t0[3]
+    r = np.sqrt(x ** 2 + y ** 2)
+    v = np.sqrt(vx ** 2 + vy ** 2)
+    energy = v ** 2 / 2 - alpha / r
+    theta1 = (vx * y - x * vy) / (x ** 2 + y ** 2)
+    moment = r ** 2 * theta1
+    ecc = np.sqrt(1 + 2 * energy * moment ** 2 / alpha ** 2)
+    theta_array = np.linspace(0, 2 * np.pi, 1000)
+    r_array = -moment ** 2 / alpha / (1 + ecc * np.cos(theta_array))
+    x_array = r_array * np.cos(theta_array)
+    y_array = r_array * np.sin(theta_array)
+    return [x_array, y_array]
