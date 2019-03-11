@@ -1,7 +1,7 @@
 import numpy as np
 
 
-x0 = np.array([10, 0, 0, 0, 0, 0, 1])
+x0 = np.array([10., 0., 0., 0., 0., 0., 1.])
 kg_to_mass_unit__coeff = 1 / 16290
 meter_to_distance_unit_coeff = 1 / 637100
 time_coff = 1 / 60
@@ -37,3 +37,5 @@ _3_4ths_meter_to_distance_unit_coeff__over__rocket_inertia = .75 * meter_to_dist
 inv_h0 = 1. / h0
 ideal_orbit_x = a0 * np.array([np.cos(i * 2 * np.pi / 5000) for i in range(0, 5000)])
 ideal_orbit_y = a0 * np.array([np.sin(i * 2 * np.pi / 5000) for i in range(0, 5000)])
+drag_constant = 0.5 * p0 * Cd * A
+

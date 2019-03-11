@@ -2,7 +2,6 @@ from Solver import *
 import math, cmath
 import sympy
 
-
 _3_4ths_meter_to_distance_unit_coeff__over__rocket_inertia = .75 * meter_to_distance_unit_coeff / rocket_inertia
 t = sympy.symbols('t')
 x, y, vx, vy, theta, theta1, m = sympy.symbols('x y vx vy theta theta1 m')
@@ -50,9 +49,9 @@ def f_eval(time_value, u_at_t, x_at_t):
     y = x_at_t[1]
     vx = x_at_t[2]
     vy = x_at_t[3]
-    r = np.sqrt(x**2 + y**2)
-    v = np.sqrt(vx**2 + vy**2)
-    m_inv = 1/x_at_t[6]
+    r = np.sqrt(x ** 2 + y ** 2)
+    v = np.sqrt(vx ** 2 + vy ** 2)
+    m_inv = 1 / x_at_t[6]
     drag = half_A_Cd_p0 * v * np.exp(-(r - 1) / h0)
     r_cubed = r * r * r
     ax = thrust * math.cos(x_at_t[4]) * m_inv - alpha * x / r_cubed + thrust * vx * inv_isp_g0 * m_inv - drag * vx
@@ -69,12 +68,29 @@ def f_eval(time_value, u_at_t, x_at_t):
     return results
 
 
-def dfdu(time_value_,u_at_t, x_at_t):
+def dhdm(x_at_t, dx_at_t):
+    x = x_at_t[0]
+    y = x_at_t[1]
     vx = x_at_t[2]
     vy = x_at_t[3]
-    m_inv = 1/x_at_t[6]
+    r = np.sqrt(x ** 2 + y ** 2)
+    v = np.sqrt(vx ** 2 + vy ** 2)
+    dx = dx_at_t[0]
+    dy = dx_at_t[1]
+    dvx = dx_at_t[2]
+    dvy = dx_at_t[3]
+    return np.array([1 / a0 * (x * dx + y * dy) / r,
+                     1 / v_ideal * (vx * dvx + vy * dvy) / v,
+                     vx * dx + x * dvx + vy * dy + y * dvy,
+                     dx_at_t[5]])
+
+
+def dfdu(time_value_, u_at_t, x_at_t):
+    vx = x_at_t[2]
+    vy = x_at_t[3]
+    m_inv = 1 / x_at_t[6]
     theta = x_at_t[4]
-    results = np.zeros((7,2))
+    results = np.zeros((7, 2))
     results[2, 0] = m_inv * (math.cos(theta) + vx * inv_isp_g0)
     results[2, 1] = m_inv * (math.cos(theta) + vx * inv_isp_g0)
     results[3, 0] = m_inv * (math.sin(theta) + vy * inv_isp_g0)
@@ -92,7 +108,10 @@ def dfdx(time_value, u_at_t, x_at_t):
     vx = x_at_t[2]
     vy = x_at_t[3]
     r = math.sqrt(x * x + y * y)
-    v = math.sqrt(vx * vx + vy * vy)
+    if vx == 0 and vy == 0:
+        v = 1e-300
+    else:
+        v = math.sqrt(vx * vx + vy * vy)
     D = half_A_Cd_p0 * math.exp((1. - r) * inv_h0)
 
     result = np.zeros((7, 7))
@@ -176,5 +195,3 @@ J_r = Functional(system, 0, h_r)
 J_v = Functional(system, 0, h_v)
 J_dot = Functional(system, 0, h_dot)
 J_theta1 = Functional(system, 0, h_theta1)
-
-

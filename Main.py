@@ -16,7 +16,7 @@ def u_eval(time_value):
 
 
 def positive_fuel(vector):
-    return vector[0]
+    return vector[0] - 550 * kg_to_mass_unit__coeff
 
 
 def thrust_constraint_min(vector):
@@ -47,6 +47,7 @@ def solve_for_orbit(x_at_t0):
 
 u = TimeFunction(f=u_eval)
 u.vector = (np.load("least_square.npy"))
+u.vector = np.concatenate((np.ones(1), u.vector))
 # u.to_vector()
 
 
@@ -100,9 +101,42 @@ def h_mass_wrapper(vector):
     return h_constraint(vector[1::])
 
 
-def h_mass_grad(vector):
-    system[6] = vector[0]
-    return better_h_constraint_grad(vector[1::])
+def better_h_mass_grad(vector):
+    v = vector[1::]
+    u = TimeFunction(vector=v, dim=2)
+    u.to_func()
+    x = system.solve(u)
+    x_T = x(T)
+
+    def func(t, y):
+        P = np.reshape(y, (4, 7))
+        return np.ravel(P @ dfdx(T - t, u(T - t), x(T - t)))
+
+    def func_m(t, y):
+        return f.dx(t, u(t), x(t)) @ y
+
+    p_sol = integrate.solve_ivp(func, (0, T), np.concatenate((dhdx_r(x_T), dhdx_v(x_T), dhdx_dot(x_T), dhdx_theta1(x_T))), dense_output=True, atol=1e-12, rtol=1e-12).sol
+    dx = integrate.solve_ivp(func_m, (0, T), np.array([0, 0, 0, 0, 0, 0, 1]), dense_output=True, atol=1e-12, rtol=1e-12).sol
+
+
+    def p_eval(t):
+        return np.reshape(p_sol(T - t), (4, 7))
+
+    def grad_eval(t):
+        return p_eval(t) @ dfdu(t, u(t), x(t))
+    grad_list = [sum([W_i[j] * grad_eval(dt * (i + X_i[j])) for j in range(deg)]) for i in range(0, n)]
+    grad_m = dhdm(x(T), dx(T))
+
+    solution = calculate_orbit(x_T)
+    orbit_ani.set_data(solution[0], solution[1])
+    plt.pause(0.01)
+    control1.set_data(time_array_u, u.vector[::2])
+    plt.pause(0.01)
+    control2.set_data(time_array_u, u.vector[1::2])
+    plt.pause(0.01)
+    grad_thrust = T / n * np.concatenate(grad_list, axis=1)
+    results = np.column_stack((grad_m, grad_thrust))
+    return results
 
 
 def consecutive_diff(vector, plots=None):
@@ -133,19 +167,20 @@ control1, = ax21.step([0], [0])
 control2, = ax22.step([0], [0])
 plt.pause(1)
 
-result = optimize.minimize(consecutive_diff, u.vector, [orbit_ani, control1, control2], method="SLSQP", options={"ftol": 1e-15, "maxiter": 1000, "iprint": 3, "disp": True},
+result = optimize.minimize(initial_mass, u.vector, method="SLSQP", options={"maxiter": 300, "iprint": 3, "disp": True},
                            constraints=({"type": "ineq", "fun": thrust_constraint_min},
                                         {"type": "ineq", 'fun': thrust_constraint_max},
                                         {"type": "ineq", "fun": fuel_constraint},
-                                        {"type": "eq", "fun": h_constraint, "jac": better_h_constraint_grad}))
+                                        {"type": "ineq", "fun": positive_fuel},
+                                        {"type": "eq", "fun": h_mass_wrapper, "jac": better_h_mass_grad}))
 """result = optimize.minimize(J_h.J_wrapper, u.vector, [orbit_ani, control1, control2], method="SLSQP", options={"ftol": 1e-15, "maxiter": 100, "iprint": 3, "disp": True}, jac=J_h.grad_wrapper,
                            constraints=({"type": "ineq", "fun": thrust_constraint_min},
                                         {"type": "ineq", 'fun': thrust_constraint_max},
                                         {"type": "ineq", "fun": fuel_constraint}))
 """
 print(result)
-u1 = TimeFunction(vector=result.x, dim=2)
-np.save("consecutive_diff_T600_n50", u1.vector)
+u1 = TimeFunction(vector=result.x[1::], dim=2)
+np.save("variable_mass_T600_n50.npy", u1.vector)
 u1.to_func()
 grad = result.jac
 
