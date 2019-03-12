@@ -102,6 +102,7 @@ def h_mass_wrapper(vector):
 
 
 def better_h_mass_grad(vector):
+    system.x0[6] = vector[0]
     v = vector[1::]
     u = TimeFunction(vector=v, dim=2)
     u.to_func()
@@ -136,7 +137,22 @@ def better_h_mass_grad(vector):
     plt.pause(0.01)
     grad_thrust = T / n * np.concatenate(grad_list, axis=1)
     results = np.column_stack((grad_m, grad_thrust))
-    return results
+    return results/2
+
+
+def h_dot_inequality_max(vector):
+    system.x0[6] = vector[0]
+    return 0.3 - J_dot.J_wrapper(vector[1::])
+
+
+def h_dot_inequality_min(vector):
+    system.x0[6] = vector[0]
+    return J_dot.J_wrapper(vector[1::]) + 0.3
+
+
+def h_dot_inequality_max_grad(vector):
+    system.x0[6] = vector[0]
+    grad = J_dot.grad_wrapper(vector[1::])
 
 
 def consecutive_diff(vector, plots=None):

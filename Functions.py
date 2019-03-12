@@ -81,7 +81,7 @@ def dhdm(x_at_t, dx_at_t):
     dvy = dx_at_t[3]
     return np.array([1 / a0 * (x * dx + y * dy) / r,
                      1 / v_ideal * (vx * dvx + vy * dvy) / v,
-                     vx * dx + x * dvx + vy * dy + y * dvy,
+                     (vx * dx + x * dvx + vy * dy + y * dvy),
                      dx_at_t[5]])
 
 
