@@ -1,13 +1,13 @@
 import numpy as np
 
 
-x0 = np.array([10., 0., 0., 0., 0., 0., 1.])
+initial_state = np.array([10., 0., 0., 0., 0., 0., 1.])
 kg_to_mass_unit__coeff = 1 / 16290
 meter_to_distance_unit_coeff = 1 / 637100
 time_coff = 1 / 60
 newton_to_force_unit_coeff = kg_to_mass_unit__coeff * meter_to_distance_unit_coeff / (time_coff ** 2)
 T = 600 * time_coff
-n = 50
+n = 200
 dt = T / n
 grad_time = 0
 J_time = 0
@@ -38,4 +38,3 @@ inv_h0 = 1. / h0
 ideal_orbit_x = a0 * np.array([np.cos(i * 2 * np.pi / 5000) for i in range(0, 5000)])
 ideal_orbit_y = a0 * np.array([np.sin(i * 2 * np.pi / 5000) for i in range(0, 5000)])
 drag_constant = 0.5 * p0 * Cd * A
-

@@ -1,6 +1,6 @@
 import scipy.optimize as optimize
 import time as chrono
-from Functions import *
+from functions import *
 import numpy as np
 
 
@@ -19,17 +19,30 @@ def positive_fuel(vector):
     return vector[0] - 550 * kg_to_mass_unit__coeff
 
 
-def thrust_constraint_min(vector):
+def thrust_constraint_min_variable_mass(vector):
     return vector[1::]
 
 
-def thrust_constraint_max(vector):
+def thrust_constraint_max_variable_mass(vector):
     res = 16000 * 9.806 * newton_to_force_unit_coeff * np.ones(np.size(vector[1::])) - vector[1::]
     return res
 
 
-def fuel_constraint(vector):
+def fuel_constraint_variable_mass(vector):
     return vector[0] - 550 * kg_to_mass_unit__coeff - np.sum(vector[1::]) * dt / isp / g0
+
+
+def thrust_constraint_min(vector):
+    return vector[::]
+
+
+def thrust_constraint_max(vector):
+    res = 16000 * 9.806 * newton_to_force_unit_coeff * np.ones(np.size(vector[::])) - vector[::]
+    return res
+
+
+def fuel_constraint(vector):
+    return initial_control[0] - 550 * kg_to_mass_unit__coeff - np.sum(vector[::]) * dt / isp / g0
 
 
 def solve_for_orbit(x_at_t0):
@@ -45,11 +58,12 @@ def solve_for_orbit(x_at_t0):
     return solution
 
 
-u = TimeFunction(f=u_eval)
-u.vector = (np.load("least_square.npy"))
-u.vector = np.concatenate((np.ones(1), u.vector))
+initial_control = np.load('2019_05_02__20_14_29__consecutive_diff_45%_extra_mass_T600_n200.npy')
+system.x0[6] = initial_control[0] * (1 + 4/10)
+u = TimeFunction(vector=initial_control[1::], dim=2)
+# u.to_func(step=T/100)
 # u.to_vector()
-
+# u.vector = np.concatenate((np.array([system.x0[6]]), u.vector))
 
 def h_constraint(vector, x_at_t=None):
     if not (x_at_t is None):
@@ -76,8 +90,9 @@ def better_h_constraint_grad(vector):
     x_T = x(T)
 
     def func(t, y):
-        P = np.reshape(y, (4, 7))
-        return np.ravel(P @ dfdx(T - t, u(T - t), x(T - t)))
+        y_matrix = np.reshape(y, (4, 7))
+        return np.ravel(y_matrix @ dfdx(T - t, u(T - t), x(T - t)))
+
     p_sol = integrate.solve_ivp(func, (0, T), np.concatenate((dhdx_r(x_T), dhdx_v(x_T), dhdx_dot(x_T), dhdx_theta1(x_T))), dense_output=True, atol=1e-12, rtol=1e-12).sol
 
     def p_eval(t):
@@ -107,18 +122,17 @@ def better_h_mass_grad(vector):
     u = TimeFunction(vector=v, dim=2)
     u.to_func()
     x = system.solve(u)
-    x_T = x(T)
+    x_t = x(T)
 
     def func(t, y):
-        P = np.reshape(y, (4, 7))
-        return np.ravel(P @ dfdx(T - t, u(T - t), x(T - t)))
+        matrix_y = np.reshape(y, (4, 7))
+        return np.ravel(matrix_y @ dfdx(T - t, u(T - t), x(T - t)))
 
     def func_m(t, y):
         return f.dx(t, u(t), x(t)) @ y
 
-    p_sol = integrate.solve_ivp(func, (0, T), np.concatenate((dhdx_r(x_T), dhdx_v(x_T), dhdx_dot(x_T), dhdx_theta1(x_T))), dense_output=True, atol=1e-12, rtol=1e-12).sol
+    p_sol = integrate.solve_ivp(func, (0, T), np.concatenate((dhdx_r(x_t), dhdx_v(x_t), dhdx_dot(x_t), dhdx_theta1(x_t))), dense_output=True, atol=1e-12, rtol=1e-12).sol
     dx = integrate.solve_ivp(func_m, (0, T), np.array([0, 0, 0, 0, 0, 0, 1]), dense_output=True, atol=1e-12, rtol=1e-12).sol
-
 
     def p_eval(t):
         return np.reshape(p_sol(T - t), (4, 7))
@@ -128,7 +142,7 @@ def better_h_mass_grad(vector):
     grad_list = [sum([W_i[j] * grad_eval(dt * (i + X_i[j])) for j in range(deg)]) for i in range(0, n)]
     grad_m = dhdm(x(T), dx(T))
 
-    solution = calculate_orbit(x_T)
+    solution = calculate_orbit(x_t)
     orbit_ani.set_data(solution[0], solution[1])
     plt.pause(0.01)
     control1.set_data(time_array_u, u.vector[::2])
@@ -150,18 +164,25 @@ def h_dot_inequality_min(vector):
     return J_dot.J_wrapper(vector[1::]) + 0.3
 
 
-def h_dot_inequality_max_grad(vector):
-    system.x0[6] = vector[0]
-    grad = J_dot.grad_wrapper(vector[1::])
-
-
 def consecutive_diff(vector, plots=None):
     return sum((vector[i] - vector[i-2])**2 for i in range(2, len(vector)))
+
+
+def consecutive_diff_grad(vector, plots=None):
+    size = len(vector)
+    return np.concatenate((np.array([-2 * (vector[2] - vector[0]), -2 * (vector[3] - vector[1])]),
+                           np.array([4 * vector[i] - 2 * (vector[i+2] + vector[i-2]) for i in range(2, size-2)]),
+                           np.array([2 * (vector[size-2] - vector[size-4]), 2 * (vector[size-1] - vector[size-3])])))
 
 
 def initial_mass(vector):
     return vector[0]
 
+
+def initial_mass_grad(vector):
+    grad = np.zeros(np.size(vector))
+    grad[0] = 1
+    return grad
 
 start = chrono.time()
 fig1 = plt.figure(1)
@@ -183,64 +204,20 @@ control1, = ax21.step([0], [0])
 control2, = ax22.step([0], [0])
 plt.pause(1)
 
-result = optimize.minimize(initial_mass, u.vector, method="SLSQP", options={"maxiter": 300, "iprint": 3, "disp": True},
+result = optimize.minimize(consecutive_diff, u.vector, method="SLSQP", jac=consecutive_diff_grad,options={"maxiter": 1000, "ftol": 1e-6, "iprint": 3, "disp": True},
                            constraints=({"type": "ineq", "fun": thrust_constraint_min},
                                         {"type": "ineq", 'fun': thrust_constraint_max},
                                         {"type": "ineq", "fun": fuel_constraint},
+                                        {"type": "eq", "fun": h_constraint, "jac": better_h_constraint_grad}))
+"""
+result = optimize.minimize(initial_mass, u.vector, method="SLSQP", jac=initial_mass_grad, options={"maxiter": 10000, 'ftol': 1e-8,"iprint": 3, "disp": True},
+                           constraints=({"type": "ineq", "fun": thrust_constraint_min_variable_mass},
+                                        {"type": "ineq", 'fun': thrust_constraint_max_variable_mass},
+                                        {"type": "ineq", "fun": fuel_constraint_variable_mass},
                                         {"type": "ineq", "fun": positive_fuel},
                                         {"type": "eq", "fun": h_mass_wrapper, "jac": better_h_mass_grad}))
-"""result = optimize.minimize(J_h.J_wrapper, u.vector, [orbit_ani, control1, control2], method="SLSQP", options={"ftol": 1e-15, "maxiter": 100, "iprint": 3, "disp": True}, jac=J_h.grad_wrapper,
-                           constraints=({"type": "ineq", "fun": thrust_constraint_min},
-                                        {"type": "ineq", 'fun': thrust_constraint_max},
-                                        {"type": "ineq", "fun": fuel_constraint}))
 """
 print(result)
-u1 = TimeFunction(vector=result.x[1::], dim=2)
-np.save("variable_mass_T600_n50.npy", u1.vector)
-u1.to_func()
-grad = result.jac
-
-time_array_u = np.linspace(0, T, n)
-time_array_x = np.linspace(0, T, 5000)
-P_original = system.solve(u)
-P = TimeFunction(f=system.solve(u1))
-P_original.to_vector(step=5000)
-P.to_vector(step=5000)
-orbit_original = solve_for_orbit(P_original(T))
-orbit = solve_for_orbit(P(T))
-orbit_original.to_vector(step=5000, period=600)
-orbit.to_vector(step=5000, period=600)
-orbit_x = orbit.vector[::5]
-orbit_y = orbit.vector[1::5]
-orbit_original_x = orbit_original.vector[::5]
-orbit_original_y = orbit_original.vector[1::5]
-earth_x = 10 * np.array([np.cos(i * 2 * np.pi / 5000) for i in range(0, 5000)])
-earth_y = 10 * np.array([np.sin(i * 2 * np.pi / 5000) for i in range(0, 5000)])
-ideal_orbit_x = a0 * np.array([np.cos(i * 2 * np.pi / 5000) for i in range(0, 5000)])
-ideal_orbit_y = a0 * np.array([np.sin(i * 2 * np.pi / 5000) for i in range(0, 5000)])
-print(P(T))
-X1 = P.vector[::7]
-X2 = P.vector[1::7]
-Mass = P.vector[4::7]
-gr1 = grad[::2]
-gr2 = grad[1::2]
-plt.figure(1)
-plt.ylim((15, -15))
-plt.xlim((15, -15))
-plt.autoscale(False)
-plt.plot(earth_x, earth_y)
-plt.plot(X1, X2)
-plt.figure(2)
-plt.subplot(211)
-plt.step(time_array_u, u1.vector[::2])
-plt.step(time_array_u, u.vector[::2])
-plt.subplot(212)
-plt.step(time_array_u, u1.vector[1::2])
-plt.step(time_array_u, u.vector[1::2])
-plt.figure(3)
-plt.plot(earth_x, earth_y)
-plt.plot(orbit_x, orbit_y)
-plt.plot(ideal_orbit_x, ideal_orbit_y)
+np.save(time.strftime("%Y_%m_%d__%H_%M_%S__") + "consecutive_diff_40%_extra_mass_T600_n200.npy", np.concatenate((np.array([system.x0[6]]), result.x)))
 end = chrono.time()
-print("time: ", end - start)
-plt.show()
+print("total time taken: ", end - start)

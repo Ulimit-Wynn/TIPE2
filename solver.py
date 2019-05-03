@@ -1,14 +1,7 @@
-import numpy as np
 import scipy.integrate as integrate
 import matplotlib.pyplot as plt
 import time
-from Variables import *
-
-
-to_vector_time = 0
-integration_time = 0
-solving_time = 0
-
+from constants import *
 
 
 class DifferentiableFunction:
@@ -27,8 +20,6 @@ class TimeFunction:
         self.dim = dim
 
     def integrate_v(self, a, b):
-        global integration_time
-        start = time.time()
         v = []
         for i in range(0, np.size(self(0))):
             def call_index(t):
@@ -36,36 +27,26 @@ class TimeFunction:
 
             v.append(integrate.quad(call_index, a, b, epsabs=1e-14, epsrel=1e-14)[0])
         v = np.array(v)
-        end = time.time()
-        integration_time = integration_time + end - start
-        # print("integration time: ", integration_time)
         return v
 
     def to_vector(self, step=n, period=T):
-        global to_vector_time
-        start = time.time()
-        dt = period / step
+        time_step = period / step
         dim = np.size(self.evaluate(0))
-        v1 = np.array([1 / dt * TimeFunction.integrate_v(self, i * dt, (i + 1) * dt) for i in range(0, step)])
-        v = np.array([sum([W_i[j] * self(dt * (i + X_i[j])) for j in range(deg)])
+        v = np.array([sum([W_i[j] * self(time_step * (i + X_i[j])) for j in range(deg)])
                       for i in range(0, step)])
         v = v.ravel()
-        v1 = v1.ravel()
         self.vector = v
         self.dim = dim
-        end = time.time()
-        to_vector_time += end - start
-        # print(to_vector_time)
 
-    def to_func(self):
+    def to_func(self, step=dt):
         v = np.reshape(self.vector, (-1, self.dim))
 
         def func(t):
             if t == T:
-                return v[int(T / dt) - 1]
+                return v[int(T / step) - 1]
             if t > T or t < 0:
                 return np.zeros(self.dim)
-            return v[int(t / dt)]
+            return v[int(t / step)]
 
         self.evaluate = func
 
@@ -79,8 +60,6 @@ class DynamicalSystem:
         self.x0 = x0
 
     def solve(self, u):
-        global solving_time
-        start = time.time()
 
         def func(t, x_at_t):
             dx = self.f.evaluate(t, u.evaluate(t), x_at_t)
@@ -88,8 +67,6 @@ class DynamicalSystem:
 
         solve = integrate.solve_ivp(func, (0, T), self.x0, dense_output=True, atol=1e-12, rtol=1e-12).sol
         solution = TimeFunction(f=solve.__call__)
-        end = time.time()
-        solving_time += end - start
         return solution
 
 
@@ -115,8 +92,6 @@ class Functional:
 
     def grad(self, u, plots=None):
         x = self.system.solve(u)
-        global grad_time
-        start = time.time()
         if self.g == 0:
             def func(t, y):
                 return np.atleast_1d(
@@ -159,9 +134,6 @@ class Functional:
             plots[2].set_data(time_array_u, u.vector[1::2])
             plt.pause(0.01)
         grad = TimeFunction(grad_eval)
-        end = time.time()
-        grad_time += end - start
-        # print("Grad time: ", grad_time)
         return grad
 
     def grad_vector(self, u, plots=None):
@@ -172,10 +144,8 @@ class Functional:
         return grad
 
     def grad_wrapper(self, vector, plots=None):
-        start = time.time()
         u = TimeFunction(vector=vector, dim=int(np.size(vector) / n))
         grad = self.grad_vector(u, plots)
-        end = time.time()
         return grad.vector
 
     def J_wrapper(self, vector, plots=None):
@@ -185,7 +155,6 @@ class Functional:
         j = self(u)
         end = time.time()
         J_time = J_time + end - start
-        # print("J time: ", J_time)
         return j
 
 
@@ -205,4 +174,3 @@ def calculate_orbit(x_at_t0):
     x_array = r_array * np.cos(theta_array)
     y_array = r_array * np.sin(theta_array)
     return [x_array, y_array]
-

@@ -1,23 +1,24 @@
-from Solver import *
-import math, cmath
+from solver import *
+import math
+import cmath
 import sympy
 
 _3_4ths_meter_to_distance_unit_coeff__over__rocket_inertia = .75 * meter_to_distance_unit_coeff / rocket_inertia
-t = sympy.symbols('t')
-x, y, vx, vy, theta, theta1, m = sympy.symbols('x y vx vy theta theta1 m')
+t_sym = sympy.symbols('t')
+x_sym, y_sym, vx_sym, vy_sym, theta_sym, theta1_sym, m_sym = sympy.symbols('x y vx vy theta theta1 m')
 T1, T2 = sympy.symbols('T1 T2')
-X = sympy.Matrix([x, y, vx, vy, theta, theta1, m])
+X = sympy.Matrix([x_sym, y_sym, vx_sym, vy_sym, theta_sym, theta1_sym, m_sym])
 U = sympy.Matrix([T1, T2])
-r = sympy.sqrt(x ** 2 + y ** 2)
-v = sympy.sqrt((vx ** 2 + vy ** 2))
-thrust = T1 + T2
-H_zero = 0 * x
-H = (r - a0) ** 2 / a0 ** 2 + (v - v_ideal) ** 2 / v_ideal ** 2 + (vx * x + vy * y) ** 2 + theta1 ** 2
-H_r = (r - a0) / a0
-H_v = (v - v_ideal) / v_ideal
-H_dot = (vx * x + vy * y)
-H_theta1 = theta1
-G = (thrust / (isp * g0))
+r_sym = sympy.sqrt(x_sym ** 2 + y_sym ** 2)
+v_sym = sympy.sqrt((vx_sym ** 2 + vy_sym ** 2))
+thrust_sym = T1 + T2
+H_zero = 0 * x_sym
+H = (r_sym - a0) ** 2 / a0 ** 2 + (v_sym - v_ideal) ** 2 / v_ideal ** 2 + (vx_sym * x_sym + vy_sym * y_sym) ** 2 + theta1_sym ** 2
+H_r = (r_sym - a0) / a0
+H_v = (v_sym - v_ideal) / v_ideal
+H_dot = (vx_sym * x_sym + vy_sym * y_sym)
+H_theta1 = theta1_sym
+G = (thrust_sym / (isp * g0))
 dHdX_zero = H_zero.diff(X)
 dHdX = H.diff(X)
 dHdX_r = H_r.diff(X)
@@ -187,7 +188,7 @@ h_r = DifferentiableFunction(f=h_eval_r, dfdx=dhdx_r)
 h_v = DifferentiableFunction(f=h_eval_v, dfdx=dhdx_v)
 h_dot = DifferentiableFunction(f=h_eval_dot, dfdx=dhdx_dot)
 h_theta1 = DifferentiableFunction(f=h_eval_theta1, dfdx=dhdx_theta1)
-system = DynamicalSystem(f, x0)
+system = DynamicalSystem(f, initial_state)
 J = Functional(system, g, h)
 J_zero = Functional(system, g, h_zero)
 J_h = Functional(system, 0, h)
